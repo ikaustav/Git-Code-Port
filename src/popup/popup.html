@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Git Code Port</title>
+  <link rel="stylesheet" href="../ui/common.css">
+  <style>
+    body { width: 360px; }
+    main { padding: 12px 14px 14px; }
+    .tagline { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+    .status { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.on { background: var(--accent); }
+    .dot.off { background: var(--danger); }
+    .flow { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; margin: 10px 0 0; list-style: none; font-size: 11px; color: var(--muted); }
+    .flow li:not(:last-child)::after { content: " →"; }
+    #capture-error { margin: 8px 0 0; }
+    .history { list-style: none; padding: 0; margin: 6px 0 0; }
+    .history li { padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+    .history li:last-child { border-bottom: 0; }
+    .history a { word-break: break-all; }
+    h2 { font-size: 13px; margin: 14px 0 0; }
+    kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface); }
+  </style>
+  <script type="module" src="popup.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <img src="../../assets/icons/icon32.png" alt="" width="18" height="18">
+    <h1>Git Code Port</h1>
+  </header>
+  <main>
+    <p class="tagline">Capture code. Port it to Git.</p>
+    <div class="status"><span id="status-dot" class="dot" aria-hidden="true"></span><span id="status" class="small">Checking…</span></div>
+    <button type="button" id="capture" class="btn primary block">Capture selected code</button>
+    <p id="capture-error" class="small bad-text" role="alert" hidden></p>
+    <ol class="flow" aria-label="How it works">
+      <li>Select code</li><li>Capture</li><li>Review</li><li>Choose repository</li><li>Push</li>
+    </ol>
+    <p class="small muted">You can also right-click a selection and choose <strong>Capture code with Git Code Port</strong><span id="shortcut-hint">, or press <kbd id="shortcut">Alt+Shift+G</kbd></span>.</p>
+    <h2>Recent saves</h2>
+    <ul id="history" class="history"></ul>
+    <div class="actions"><button type="button" id="settings" class="btn small">Settings</button></div>
+  </main>
+</body>
+</html>

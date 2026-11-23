@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review capture · Git Code Port</title>
+  <link rel="stylesheet" href="../ui/common.css">
+  <link rel="stylesheet" href="review.css">
+  <script type="module" src="review.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <img src="../../assets/icons/icon32.png" alt="" width="20" height="20">
+    <h1>Git Code Port</h1>
+    <ol class="stepper" id="stepper" aria-label="Progress">
+      <li data-step="review" class="active">Review</li>
+      <li data-step="confirm">Confirm</li>
+      <li data-step="done">Done</li>
+    </ol>
+    <span id="account" class="muted small"></span>
+  </header>
+
+  <main>
+    <!-- Not connected -->
+    <div id="connect-banner" class="banner warn" hidden>
+      <strong>Not connected to GitHub.</strong>
+      <span>Add a token in Settings, then come back to this window and press ↻ next to Repository.</span>
+      <button type="button" id="open-settings" class="btn small">Open Settings</button>
+    </div>
+
+    <!-- Step 1: review & edit -->
+    <section id="screen-review" class="screen" hidden>
+      <div id="fallback-note" class="banner info" hidden>
+        This page did not let Git Code Port read the selection directly, so line breaks and indentation may have been lost. Check the code below before pushing.
+      </div>
+
+      <section class="panel">
+        <h2 class="panel-title"><span class="num">1</span> Code</h2>
+        <div class="grid-2">
+          <label class="field">
+            <span>Language <em id="lang-confidence" class="chip"></em></span>
+            <select id="language"></select>
+          </label>
+          <label class="field">
+            <span>Filename</span>
+            <input id="filename" type="text" spellcheck="false" autocomplete="off" maxlength="120">
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Captured code <em class="muted small" id="code-stats"></em></span>
+          <textarea id="code" spellcheck="false" wrap="off" rows="16" aria-describedby="code-hint"></textarea>
+          <small id="code-hint" class="muted small">You can edit the code here. Tab inserts a tab; press Esc, then Tab, to move on.</small>
+        </label>
+
+        <div id="secret-panel" class="banner danger" hidden role="alert">
+          <strong>Possible secrets found.</strong> Review these lines before saving. Detection is a heuristic and can miss things or flag harmless text.
+          <ul id="secret-list"></ul>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel-title"><span class="num">2</span> Destination</h2>
+        <div class="grid-2">
+          <div class="field">
+            <label for="repo">Repository</label>
+            <div class="row">
+              <select id="repo"><option value="">Loading…</option></select>
+              <button type="button" id="refresh-repos" class="btn icon" title="Reload repositories" aria-label="Reload repositories">↻</button>
+            </div>
+          </div>
+          <label class="field">
+            <span>Branch</span>
+            <input id="branch" type="text" list="branch-list" spellcheck="false" autocomplete="off" placeholder="main">
+            <datalist id="branch-list"></datalist>
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <label class="field">
+            <span>Folder</span>
+            <input id="folder" type="text" list="folder-list" spellcheck="false" autocomplete="off" placeholder="(repository root)">
+            <datalist id="folder-list"></datalist>
+          </label>
+          <label class="field">
+            <span>Commit message</span>
+            <input id="commit" type="text" autocomplete="off" maxlength="200">
+          </label>
+        </div>
+
+        <p class="destination">Saves to <code id="dest-preview"></code></p>
+      </section>
+
+      <details class="panel source">
+        <summary>Source and notes <span id="source-host" class="muted"></span></summary>
+        <dl>
+          <dt>Title</dt><dd id="source-title"></dd>
+          <dt>URL</dt><dd id="source-url" class="break"></dd>
+          <dt>Captured</dt><dd id="source-time"></dd>
+        </dl>
+        <label class="field">
+          <span>Notes <em class="muted small">(optional, added to the commit message)</em></span>
+          <textarea id="notes" rows="2" maxlength="2000" class="prose"></textarea>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="add-source-commit">
+          <span>Record the source title, URL and time in the commit message</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="add-header">
+          <span>Also add a source comment at the top of the file</span>
+        </label>
+      </details>
+
+      <ul id="form-errors" class="errors" hidden role="alert"></ul>
+      <div class="actions sticky">
+        <button type="button" class="btn" data-action="cancel">Cancel</button>
+        <button type="button" class="btn primary" id="to-confirm">Review &amp; push →</button>
+      </div>
+    </section>
+
+    <!-- Step 2: confirm -->
+    <section id="screen-confirm" class="screen" hidden>
+      <h2>Confirm push</h2>
+      <p class="muted">Nothing has been sent to GitHub yet. Check the details, then push.</p>
+      <dl class="summary">
+        <dt>Repository</dt><dd id="c-repo"></dd>
+        <dt>Branch</dt><dd id="c-branch"></dd>
+        <dt>File</dt><dd id="c-path" class="break"></dd>
+        <dt>Commit</dt><dd id="c-commit"></dd>
+        <dt>Size</dt><dd id="c-size"></dd>
+      </dl>
+      <pre id="c-preview" class="code-preview"></pre>
+      <div id="c-secrets" class="banner danger" hidden>
+        <strong id="c-secret-count"></strong>
+        <label class="check"><input type="checkbox" id="c-secret-ack"> I checked these lines and want to push anyway</label>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn" data-action="back">← Back to edit</button>
+        <button type="button" class="btn primary" id="do-push">Push to GitHub</button>
+      </div>
+    </section>
+
+    <!-- Working -->
+    <section id="screen-working" class="screen center" hidden aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="working-text">Checking destination…</p>
+    </section>
+
+    <!-- Conflict -->
+    <section id="screen-conflict" class="screen" hidden>
+      <h2>File already exists</h2>
+      <p><code id="x-path" class="break"></code> already exists on <code id="x-branch"></code>. Nothing has been changed.</p>
+      <div class="compare">
+        <div>
+          <h3>Current file on GitHub</h3>
+          <pre id="x-existing" class="code-preview"></pre>
+        </div>
+        <div>
+          <h3>Your capture</h3>
+          <pre id="x-new" class="code-preview"></pre>
+        </div>
+      </div>
+      <div class="actions stack">
+        <button type="button" class="btn" data-action="back">Back to edit</button>
+        <button type="button" class="btn primary" id="x-rename">Save as a new file</button>
+        <button type="button" class="btn danger" id="x-update">Replace the existing file…</button>
+      </div>
+      <label class="check confirm-row" id="x-update-confirm-row" hidden>
+        <input type="checkbox" id="x-update-confirm"> Yes, replace the existing file with my capture (the old version stays in Git history)
+      </label>
+    </section>
+
+    <!-- Not a file (folder at that path) -->
+    <section id="screen-notfile" class="screen" hidden>
+      <h2>That path is a folder</h2>
+      <p>A folder already exists at <code id="nf-path"></code>. Choose a different filename.</p>
+      <div class="actions"><button type="button" class="btn primary" data-action="back">Back to edit</button></div>
+    </section>
+
+    <!-- Success -->
+    <section id="screen-success" class="screen" hidden>
+      <h2 class="ok">✓ <span id="s-title">Saved to GitHub</span></h2>
+      <dl class="summary">
+        <dt>Repository</dt><dd id="s-repo"></dd>
+        <dt>Branch</dt><dd id="s-branch"></dd>
+        <dt>File</dt><dd id="s-path" class="break"></dd>
+      </dl>
+      <div class="actions">
+        <button type="button" class="btn" data-action="cancel">Close</button>
+        <a id="s-link" class="btn primary" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
+      </div>
+      <p class="muted small">To capture more code, select it on any page and right-click, or press the keyboard shortcut.</p>
+    </section>
+
+    <!-- Error -->
+    <section id="screen-error" class="screen" hidden>
+      <h2 class="bad">Could not save</h2>
+      <p id="e-message"></p>
+      <details><summary class="muted small">Details from GitHub</summary><pre id="e-detail" class="small"></pre></details>
+      <div class="actions">
+        <button type="button" class="btn" data-action="back">Back to edit</button>
+        <button type="button" class="btn" id="e-settings" hidden>Open Settings</button>
+        <button type="button" class="btn primary" id="e-retry" hidden>Try again</button>
+      </div>
+    </section>
+
+    <section id="screen-missing" class="screen empty" hidden>
+      <h2>Nothing to review</h2>
+      <p>This capture has expired or was already saved. Select code on a page, right-click it and choose <strong>Capture code with Git Code Port</strong>.</p>
+      <div class="actions"><button type="button" class="btn" data-action="cancel">Close</button></div>
+    </section>
+  </main>
+</body>
+</html>
