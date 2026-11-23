@@ -1,0 +1,25 @@
+# Build output
+dist/
+*.zip
+
+# Dependencies
+node_modules/
+
+# Local secrets and credentials: never commit these
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+token.txt
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Test artifacts
+test-results/
+playwright-report/

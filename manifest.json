@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Git Code Port",
+  "short_name": "Git Code Port",
+  "version": "0.1.0",
+  "description": "Capture code. Port it to Git. Save code selected on any webpage to your GitHub repository.",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "32": "assets/icons/icon32.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  },
+  "permissions": ["contextMenus", "storage", "activeTab", "scripting"],
+  "host_permissions": ["https://api.github.com/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Git Code Port",
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "32": "assets/icons/icon32.png"
+    }
+  },
+  "commands": {
+    "capture-selection": {
+      "suggested_key": { "default": "Alt+Shift+G" },
+      "description": "Capture the selected code"
+    }
+  },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; connect-src https://api.github.com"
+  }
+}

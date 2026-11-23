@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · Git Code Port</title>
+  <link rel="stylesheet" href="../ui/common.css">
+  <link rel="stylesheet" href="options.css">
+  <script type="module" src="options.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <img src="../../assets/icons/icon32.png" alt="" width="20" height="20">
+    <h1>Git Code Port · Settings</h1>
+  </header>
+  <main>
+    <section class="card">
+      <h2>GitHub connection</h2>
+      <div class="banner info dev-note">
+        <strong>How sign-in works.</strong> Git Code Port connects with a fine-grained personal access token that you create yourself and limit to the repositories you choose.
+        The token is sent only to <code>api.github.com</code>. There is no Git Code Port server.
+        A token is a powerful credential: keep its access narrow and its expiry short.
+      </div>
+
+      <div id="connected" hidden>
+        <p>Connected as <strong id="login"></strong> <span id="token-where" class="muted small"></span></p>
+        <div class="actions left">
+          <button type="button" id="disconnect" class="btn danger">Disconnect</button>
+          <a class="btn" href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">Revoke on GitHub ↗</a>
+        </div>
+        <p class="muted small">Disconnect removes the token from this browser. To invalidate it everywhere, also delete it on GitHub.</p>
+      </div>
+
+      <form id="connect-form" hidden autocomplete="off">
+        <ol class="steps">
+          <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">GitHub → New fine-grained token ↗</a>.</li>
+          <li>Under <em>Repository access</em>, choose <strong>Only select repositories</strong> and pick the repos you want to save snippets to.</li>
+          <li>Under <em>Repository permissions</em>, set <strong>Contents</strong> to <strong>Read and write</strong> (Metadata: Read-only is added automatically).</li>
+          <li>Set a short expiration, generate the token, and paste it below.</li>
+        </ol>
+        <label class="field">
+          <span>Personal access token</span>
+          <input type="password" id="token" spellcheck="false" placeholder="github_pat_…" autocomplete="off" maxlength="255">
+        </label>
+        <label class="check">
+          <input type="checkbox" id="remember">
+          <span>Remember on this device. <span class="muted">Otherwise the token is kept in memory only and forgotten when the browser closes. Remembered tokens are stored unencrypted in the extension's local storage.</span></span>
+        </label>
+        <p id="connect-error" class="error" hidden></p>
+        <div class="actions left">
+          <button type="submit" class="btn primary" id="connect-btn">Connect</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Defaults</h2>
+      <form id="defaults-form">
+        <div class="grid-2">
+          <label class="field">
+            <span>Default repository</span>
+            <input type="text" id="default-repo" placeholder="owner/coding-notes" spellcheck="false">
+          </label>
+          <label class="field">
+            <span>Default branch</span>
+            <input type="text" id="default-branch" placeholder="(repository default)" spellcheck="false">
+          </label>
+        </div>
+        <label class="field">
+          <span>Folder template</span>
+          <input type="text" id="folder-template" spellcheck="false">
+        </label>
+        <p class="muted small">Placeholders: <code>{language}</code> <code>{platform}</code> <code>{host}</code> <code>{yyyy}</code> <code>{mm}</code> <code>{dd}</code>.
+          Examples: <code>{language}</code> → <code>Python/</code>; <code>DSA/{platform}</code> → <code>DSA/LeetCode/</code> (or <code>DSA/Snippets/</code> on other sites); <code>Snippets/{host}</code> → <code>Snippets/stackoverflow.com/</code>.
+          Leave empty to save at the repository root. You can always change the folder before pushing.</p>
+        <fieldset class="plain">
+          <legend>Source information</legend>
+          <label class="check">
+            <input type="checkbox" id="source-commit">
+            <span>Record the source page title, URL, capture time and language in the commit message <span class="muted">(recommended; keeps the code file clean)</span></span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="add-header">
+            <span>Also add a source comment at the top of saved files</span>
+          </label>
+        </fieldset>
+        <p id="defaults-error" class="error" hidden role="alert"></p>
+        <div class="actions left">
+          <button type="submit" class="btn primary">Save defaults</button>
+          <span id="saved" class="muted small" hidden>Saved.</span>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Recent saves</h2>
+      <p class="muted small">Stored only in this browser.</p>
+      <ul id="history" class="history"></ul>
+      <div class="actions left"><button type="button" id="clear-history" class="btn small">Clear history</button></div>
+    </section>
+  </main>
+</body>
+</html>
