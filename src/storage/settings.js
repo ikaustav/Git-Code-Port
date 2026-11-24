@@ -1,4 +1,4 @@
-// Settings, token and history storage.
+// Settings, token and repository-cache storage. Capture history lives in src/history/index.js.
 //
 // AUTH MODEL: the user supplies their own fine-grained personal access token (PAT).
 // By default the token lives in chrome.storage.session (memory only, cleared when the browser
@@ -7,8 +7,6 @@
 // limitations and why a GitHub App / OAuth device flow is the better long-term model.
 
 const TOKEN_KEY = 'githubToken';
-const HISTORY_KEY = 'history';
-const MAX_HISTORY = 20;
 
 export const DEFAULT_SETTINGS = {
   defaultRepo: '', // "owner/name"
@@ -16,6 +14,11 @@ export const DEFAULT_SETTINGS = {
   folderTemplate: '{language}',
   addSourceHeader: false,
   includeSourceInCommit: true,
+  fullSourceUrl: false, // false: origin + path only (query strings can contain tokens)
+  storeExcerpts: true, // short excerpts in the local index for search; never for flagged content
+  categoryFolders: {}, // { [categoryId]: folder template } overrides
+  repoDefaults: {}, // { "owner/name": { branch, baseFolder } }
+  theme: 'system', // system | light | dark
   rememberToken: false,
   githubLogin: '',
   lastRepo: '',
@@ -57,21 +60,6 @@ export async function clearToken() {
   await chrome.storage.local.remove(TOKEN_KEY);
   await chrome.storage.local.remove('repoCache');
   await saveSettings({ githubLogin: '' });
-}
-
-export async function getHistory() {
-  const { [HISTORY_KEY]: h } = await chrome.storage.local.get(HISTORY_KEY);
-  return Array.isArray(h) ? h : [];
-}
-
-export async function addHistory(entry) {
-  const h = await getHistory();
-  h.unshift(entry);
-  await chrome.storage.local.set({ [HISTORY_KEY]: h.slice(0, MAX_HISTORY) });
-}
-
-export async function clearHistory() {
-  await chrome.storage.local.remove(HISTORY_KEY);
 }
 
 // Short-lived repo list cache (spec 9: cache carefully, refresh on demand).
