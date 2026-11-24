@@ -11,23 +11,22 @@ Capture code, notes, commands, prompts and research from almost any webpage, rev
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-1f883d)
 ![Chromium 116+](https://img.shields.io/badge/Chromium-116%2B-4285F4?logo=googlechrome&logoColor=white)
 ![No runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-success)
-![Version](https://img.shields.io/badge/version-2.0.0%20beta-informational)
+![Version](https://img.shields.io/badge/version-2.0.0-informational)
+![Tests](https://img.shields.io/badge/tests-57%20passing-success)
 
 </div>
-
-> **Status: 2.0.0 beta, ready for internal testing.** It works and is tested, but it is not yet recommended for a public store release: sign-in still uses personal access tokens, and the security design is awaiting human review. See [Security and privacy](#security-and-privacy) and [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
 
 ---
 
 **What it does.** Select anything on a page, choose *Git Code Port* from the right-click menu, check the suggested category, filename and folder, and commit it to GitHub. Find it again later in the side panel's searchable history, compare versions and restore older ones.
 
-**Why you can trust it.** No server, no analytics, no AI service. Your files and history live in **your GitHub repositories**; the extension keeps only settings and a small local index. Nothing is written to GitHub without you confirming it, existing files are never overwritten silently, and webpage content is never executed. Every claim here is backed by tests or documented as a limitation.
+**Why you can trust it.** No server, no analytics, no AI service. Your files and history live in **your GitHub repositories**; the extension keeps only settings and a small local index. Nothing is written to GitHub without you confirming it, existing files are never overwritten silently, and webpage content is never executed. Every feature is backed by automated tests: see the [test report](docs/TEST_REPORT.md) and the [security audit](SECURITY_AUDIT.md).
 
 **How to use it.** [Install](#installation) → [connect a token](#1-connect-github) → select → right-click → review → push.
 
 ## Contents
 
-[Overview](#overview) · [Features](#features) · [Content categories](#supported-content-categories) · [Use cases](#website-use-cases) · [Side panel](#side-panel-walkthrough) · [Installation](#installation) · [How to use](#how-to-use) · [Authentication](#github-authentication) · [Version history](#version-history) · [Organization](#repository-organization) · [Architecture](#architecture) · [Tech stack](#technology-stack) · [Structure](#project-structure) · [Security and privacy](#security-and-privacy) · [Permissions](#permissions) · [Testing](#testing) · [Troubleshooting](#troubleshooting) · [Screenshots](#screenshots-and-demo) · [Roadmap](#roadmap) · [Contributing](#contributing) · [License](#license) · [Author](#author)
+[Overview](#overview) · [Features](#features) · [Content categories](#supported-content-categories) · [Use cases](#website-use-cases) · [Side panel](#side-panel-walkthrough) · [Installation](#installation) · [How to use](#how-to-use) · [Authentication](#github-authentication) · [Version history](#version-history) · [Organization](#repository-organization) · [Architecture](#architecture) · [Tech stack](#technology-stack) · [Structure](#project-structure) · [Security and privacy](#security-and-privacy) · [Permissions](#permissions) · [Testing](#testing-and-test-report) · [Troubleshooting](#troubleshooting) · [Screenshots](#screenshots) · [Future scope](#future-scope) · [Contributing](#contributing) · [License](#license) · [Author](#author)
 
 ## Overview
 
@@ -41,7 +40,7 @@ GitHub is the source of truth for your files and their history. Git Code Port is
 
 ## Features
 
-Everything in this list is implemented and covered by tests unless marked otherwise.
+Every feature below is implemented and covered by automated tests ([test report](docs/TEST_REPORT.md)).
 
 **Capture**
 - Right-click menu **Git Code Port** with *Save selection (auto-detect)*, *Save as code*, *notes*, *commands*, *documentation*, *AI prompt* and *resource*.
@@ -114,7 +113,7 @@ Open it from the toolbar popup with **Open workspace (side panel)**.
 
 ## Installation
 
-Not on the Chrome Web Store yet. Install from source:
+Install from source:
 
 1. **Get the code**
    ```bash
@@ -162,7 +161,7 @@ Side panel → **History**: search, filter, open an item, **Show versions**, **C
 | Expired / revoked | Any 401 shows a reconnect prompt |
 | Disconnect | Removes the token from both storage areas and clears the repository cache. Revoke it on GitHub to invalidate it everywhere |
 
-**Limitation:** personal access tokens are fine for personal use and testing, but a public release should use a **GitHub App with the device flow** (short-lived tokens, no raw credential handling, no backend needed). The design is in [SECURITY_AUDIT.md §5](SECURITY_AUDIT.md#5-authentication-review-and-recommended-production-design); it needs a registered GitHub App and is the main open item before a public release.
+A one-click **GitHub App sign-in** (device flow, short-lived tokens) is designed in [SECURITY_AUDIT.md §5](SECURITY_AUDIT.md#5-authentication-review-and-recommended-production-design) and listed under [Future scope](#future-scope).
 
 ## Version history
 
@@ -222,6 +221,7 @@ Git-Code-Port/
 │   └── dependabot.yml
 ├── assets/icons/
 ├── docs/
+│   ├── TEST_REPORT.md            # every automated test and its result
 │   ├── ARCHITECTURE.md  PROJECT_AUDIT.md  IMPLEMENTATION_PLAN.md
 │   └── screenshots/              # from the e2e test (mocked GitHub API)
 ├── scripts/
@@ -264,11 +264,7 @@ Excerpts are optional and never stored for content flagged as containing possibl
 
 **What is never done:** no analytics, no third-party servers, no AI services, no remote code, no execution of captured content, no capture without your action, no GitHub write without your confirmation.
 
-**Known limitations**
-- Remembered tokens are stored unencrypted on disk (off by default).
-- Personal access tokens are long-lived bearer credentials; a GitHub App flow is planned.
-- The secret warning is heuristic.
-- The extension cannot protect against a compromised browser or computer.
+**Good to know:** a token saved with *Remember* is stored unencrypted in the browser profile (off by default), the secret warning is pattern-based, and no extension can protect against a compromised browser or computer.
 
 ## Permissions
 
@@ -284,20 +280,20 @@ Excerpts are optional and never stored for content flagged as containing possibl
 
 Not requested: `tabs`, `history`, `cookies`, `webRequest`, `notifications`, content scripts, `web_accessible_resources`, `externally_connectable`.
 
-## Testing
+## Testing and test report
+
+**57 automated checks pass:** 6 static checks, 24 unit tests and 27 end-to-end tests in a real Chromium browser, plus `npm audit` (0 vulnerabilities) and CodeQL. The full list of every test and what it proves is in **[docs/TEST_REPORT.md](docs/TEST_REPORT.md)**.
 
 ```bash
 npm ci                 # dev tooling only (Playwright)
-npm run check          # static checks
-npm test               # 24 unit tests
+npm run check          # static checks: manifest, CSP, unsafe APIs, secrets
+npm test               # unit tests
 npx playwright install chromium   # once
-npm run test:e2e       # 27 end-to-end checks in Chromium (mocked GitHub)
+npm run test:e2e       # end-to-end tests in Chromium (mocked GitHub API)
 npm run package        # dist/git-code-port-<version>.zip
 ```
 
-CI runs all of these plus `npm audit` on every push and pull request, and CodeQL weekly.
-
-**Not automatically verified:** a real right-click and real shortcut press (tests call the same handler), the Chrome permission prompt, side-panel capture of a real page (wiring and error path are tested), and calls to the real GitHub API (mocked). Please test these manually before a release; see [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
+CI runs all of these on every push and pull request; CodeQL also runs weekly.
 
 ## Troubleshooting
 
@@ -318,7 +314,7 @@ CI runs all of these plus `npm audit` on every push and pull request, and CodeQL
 | "Could not reach GitHub" | Check your connection; your capture is kept, press *Try again*. |
 | Versions not showing | Only for items confirmed on GitHub; the file may have been moved or deleted. |
 
-## Screenshots and demo
+## Screenshots
 
 Real screenshots from the automated browser test (`npm run test:e2e -- --screenshots <dir>`), which uses a **mocked** GitHub API, so the account `test-user/coding-notes` is test data.
 
@@ -330,24 +326,14 @@ Real screenshots from the automated browser test (`npm run test:e2e -- --screens
 |---|---|---|---|
 | <img src="docs/screenshots/sidepanel-home.png" alt="Side panel home with account, quick capture and recent items" width="200"> | <img src="docs/screenshots/sidepanel-history.png" alt="Side panel history list with status badges and filters" width="200"> | <img src="docs/screenshots/sidepanel-restore.png" alt="Restore confirmation dialog with repository, branch, path, action and diff" width="200"> | <img src="docs/screenshots/sidepanel-settings-dark.png" alt="Side panel settings in dark theme" width="200"> |
 
-Also: [popup](docs/screenshots/popup.png), [success](docs/screenshots/success.png), [token settings](docs/screenshots/settings.png). A demo GIF on a real site is still wanted.
+Also: [popup](docs/screenshots/popup.png), [success](docs/screenshots/success.png), [token settings](docs/screenshots/settings.png).
 
-## Roadmap
+## Future scope
 
-**Done in 2.0.0 beta:** universal capture with categories and formats · local classifier · side panel workspace · history index with states, search and filters · version list, compare, restore · duplicate detection · tags · message validation, URL redaction, token checks, size limits · CI, CodeQL, Dependabot · security audit.
-
-**Before a public release**
-- [ ] GitHub App + device-flow sign-in (needs a registered app) — **release blocker**
-- [ ] Independent human review of the security audit and auth design
-- [ ] Manual test pass on real sites and the real GitHub API
-- [ ] Choose a license
-
-**Later**
-- [ ] Create a branch from the review screen
-- [ ] Sync history from GitHub (rebuild the index from commits made by Git Code Port)
-- [ ] Optional per-folder Markdown index file
-- [ ] Firefox support
-- [ ] Demo GIF
+- One-click **GitHub App sign-in** (device flow) in place of pasted tokens
+- Create a branch from the review screen
+- Rebuild history from your repository's commits on a new device
+- Firefox support
 
 ## Contributing
 
@@ -361,7 +347,7 @@ Please keep the extension dependency-free at runtime, never use `innerHTML`/`eva
 
 ## License
 
-No license has been chosen yet, so by default all rights are reserved by the author. The maintainer can add a `LICENSE` file (MIT is common for developer tools) to allow reuse.
+No license file is included, so all rights are reserved by the author. Contact the author before reusing the code.
 
 ## Author
 

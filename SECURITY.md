@@ -4,8 +4,8 @@
 
 | Version | Supported |
 |---|---|
-| 2.0.x beta (`release/v2`) | Yes |
-| 0.1.x (`main`) | Security fixes until 2.0 is merged |
+| 2.0.x | Yes |
+| 0.1.x | No |
 
 ## Reporting a vulnerability
 

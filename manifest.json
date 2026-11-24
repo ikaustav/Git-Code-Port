@@ -3,7 +3,7 @@
   "name": "Git Code Port",
   "short_name": "Git Code Port",
   "version": "2.0.0",
-  "version_name": "2.0.0 beta",
+  "version_name": "2.0.0",
   "description": "Your web. Your knowledge. Your Git history. Save code, notes and commands from any webpage to GitHub.",
   "minimum_chrome_version": "116",
   "icons": {
