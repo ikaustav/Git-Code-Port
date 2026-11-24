@@ -24,6 +24,8 @@ Capture code, notes, commands, prompts and research from almost any webpage, rev
 
 **How to use it.** [Install](#installation) → [connect a token](#1-connect-github) → select → right-click → review → push.
 
+> 🚀 **New here? Follow the [step-by-step Getting Started guide](docs/GETTING_STARTED.md)**: download, unzip, install in Chrome, create your GitHub token and save your first snippet in about 10 minutes.
+
 ## Contents
 
 [Overview](#overview) · [Features](#features) · [Content categories](#supported-content-categories) · [Use cases](#website-use-cases) · [Side panel](#side-panel-walkthrough) · [Installation](#installation) · [How to use](#how-to-use) · [Authentication](#github-authentication) · [Version history](#version-history) · [Organization](#repository-organization) · [Architecture](#architecture) · [Tech stack](#technology-stack) · [Structure](#project-structure) · [Security and privacy](#security-and-privacy) · [Permissions](#permissions) · [Testing](#testing-and-test-report) · [Troubleshooting](#troubleshooting) · [Screenshots](#screenshots) · [Future scope](#future-scope) · [Contributing](#contributing) · [License](#license) · [Author](#author)
@@ -112,6 +114,8 @@ Open it from the toolbar popup with **Open workspace (side panel)**.
 | **Settings** | Account, token type and expiry with warnings, disconnect, folder templates per category, privacy options, side-panel permission, theme, clear history. |
 
 ## Installation
+
+> First time installing a Chrome extension from a folder? The **[Getting Started guide](docs/GETTING_STARTED.md)** explains every click, including creating the GitHub token.
 
 Install from source:
 
@@ -221,6 +225,7 @@ Git-Code-Port/
 │   └── dependabot.yml
 ├── assets/icons/
 ├── docs/
+│   ├── GETTING_STARTED.md        # beginner step-by-step setup guide
 │   ├── TEST_REPORT.md            # every automated test and its result
 │   ├── ARCHITECTURE.md  PROJECT_AUDIT.md  IMPLEMENTATION_PLAN.md
 │   └── screenshots/              # from the e2e test (mocked GitHub API)
@@ -306,7 +311,7 @@ CI runs all of these on every push and pull request; CodeQL also runs weekly.
 | Side panel buttons ask for permission | Expected the first time; see [Permissions](#permissions). Or use the right-click menu. |
 | Shortcut does nothing | Set another at `chrome://extensions/shortcuts`. |
 | "GitHub rejected the token" | Expired or revoked. Create a new token, reconnect. |
-| "Permission denied" | Token lacks *Contents: Read and write* for that repo, or the repo is not selected. Organization repos may need approval for fine-grained tokens. |
+| "Permission denied" | Token lacks *Contents: Read and write*, the repo is not selected for the token, or the branch is protected. Organization repos may need approval for fine-grained tokens. See the [guide](docs/GETTING_STARTED.md#if-something-goes-wrong). |
 | Branch does not exist | Choose an existing branch or create it on GitHub first. |
 | File already exists | Save as a new file, rename, or replace after confirming. |
 | Repositories not loading | Press ↻ (review) or *Reload* (side panel → Repos). Only repos you can push to are listed. |
