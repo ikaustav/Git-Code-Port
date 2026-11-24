@@ -2,9 +2,9 @@
 
 All notable changes. Dates are UTC. This project follows [Semantic Versioning](https://semver.org/).
 
-## [2.0.0 beta] — 2026-11-24 (branch `release/v2`, not yet merged)
+## [2.0.0] — 2026-11-24
 
-Ready for internal testing. Not yet for public release (see [SECURITY_AUDIT.md](SECURITY_AUDIT.md)).
+All 57 automated checks pass; see [docs/TEST_REPORT.md](docs/TEST_REPORT.md).
 
 ### Added
 - **Universal capture:** right-click submenu *Git Code Port* with auto-detect and explicit types (code, notes, commands, documentation, AI prompt, resource).
@@ -16,7 +16,7 @@ Ready for internal testing. Not yet for public release (see [SECURITY_AUDIT.md](
 - **Organization:** category folder templates, per-repository branch and base folder, tags, duplicate warning (SHA-256 of content).
 - **Settings:** token type and expiry with warnings, privacy toggles, theme (system/light/dark), side-panel permission revoke.
 - **Quality:** V2 unit tests, extended end-to-end tests, GitHub Actions CI, CodeQL, Dependabot.
-- **Docs:** SECURITY_AUDIT.md, SECURITY.md, ARCHITECTURE.md, project audit, implementation plan, new screenshots.
+- **Docs:** TEST_REPORT.md, SECURITY_AUDIT.md, SECURITY.md, ARCHITECTURE.md, project audit, implementation plan, new screenshots.
 
 ### Security
 - Service-worker message validator (sender id, extension origin, type allow-list, exact payload shape).
@@ -30,11 +30,10 @@ Ready for internal testing. Not yet for public release (see [SECURITY_AUDIT.md](
 - History moved from a simple list to the capture index; the old list is migrated automatically.
 - Manifest version 2.0.0; adds the `sidePanel` permission and optional host permissions.
 
-### Not done
-- GitHub App / device-flow sign-in (design documented).
-- Demo GIF, Firefox support, sync of history from GitHub.
+### Future scope
+- GitHub App sign-in (device flow), branch creation from the review screen, history rebuild from commits, Firefox.
 
-## [0.1.0] — 2026-11-24 (`main`)
+## [0.1.0] — 2026-11-24
 
 ### Added
 - MV3 extension: capture selection (menu, toolbar, Alt+Shift+G), review window, language detection, filename and folder suggestions, secret warnings, safe create/update via the GitHub Contents API, conflict handling, recent history, fine-grained token settings.
