@@ -2,8 +2,9 @@
   "manifest_version": 3,
   "name": "Git Code Port",
   "short_name": "Git Code Port",
-  "version": "0.1.0",
-  "description": "Capture code. Port it to Git. Save code selected on any webpage to your GitHub repository.",
+  "version": "2.0.0",
+  "version_name": "2.0.0 beta",
+  "description": "Your web. Your knowledge. Your Git history. Save code, notes and commands from any webpage to GitHub.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "assets/icons/icon16.png",
@@ -11,8 +12,20 @@
     "48": "assets/icons/icon48.png",
     "128": "assets/icons/icon128.png"
   },
-  "permissions": ["contextMenus", "storage", "activeTab", "scripting"],
-  "host_permissions": ["https://api.github.com/*"],
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "activeTab",
+    "scripting",
+    "sidePanel"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "host_permissions": [
+    "https://api.github.com/*"
+  ],
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"
@@ -25,10 +38,15 @@
       "32": "assets/icons/icon32.png"
     }
   },
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  },
   "commands": {
     "capture-selection": {
-      "suggested_key": { "default": "Alt+Shift+G" },
-      "description": "Capture the selected code"
+      "suggested_key": {
+        "default": "Alt+Shift+G"
+      },
+      "description": "Capture the selection (auto-detect type)"
     }
   },
   "options_ui": {

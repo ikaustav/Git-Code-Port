@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Git Code Port workspace</title>
+  <link rel="stylesheet" href="../ui/common.css">
+  <link rel="stylesheet" href="sidepanel.css">
+  <script type="module" src="sidepanel.js"></script>
+</head>
+<body>
+  <header class="sp-header">
+    <img src="../../assets/icons/icon32.png" alt="" width="20" height="20">
+    <div class="sp-brand">
+      <h1>Git Code Port</h1>
+      <p class="muted small">Your web. Your knowledge. Your Git history.</p>
+    </div>
+    <span id="conn-dot" class="dot" role="img" aria-label="Not connected"></span>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-home" aria-controls="view-home" aria-selected="true">Home</button>
+    <button type="button" role="tab" id="tab-explore" aria-controls="view-explore" aria-selected="false" tabindex="-1">Explore</button>
+    <button type="button" role="tab" id="tab-capture" aria-controls="view-capture" aria-selected="false" tabindex="-1">Capture</button>
+    <button type="button" role="tab" id="tab-history" aria-controls="view-history" aria-selected="false" tabindex="-1">History</button>
+    <button type="button" role="tab" id="tab-repos" aria-controls="view-repos" aria-selected="false" tabindex="-1">Repos</button>
+    <button type="button" role="tab" id="tab-settings" aria-controls="view-settings" aria-selected="false" tabindex="-1">Settings</button>
+  </nav>
+
+  <main class="sp-main">
+    <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
+
+    <!-- Home -->
+    <section id="view-home" role="tabpanel" aria-labelledby="tab-home">
+      <div class="card">
+        <h2>Account</h2>
+        <p id="home-account" class="small">Checking…</p>
+        <p class="small">Default repository: <strong id="home-default-repo">not set</strong></p>
+        <div class="actions left" id="home-connect" hidden>
+          <button type="button" class="btn primary small" data-open-options>Connect GitHub</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Quick capture</h2>
+        <p class="small muted">Select something on the page, then choose what it is.</p>
+        <div class="quick-grid" data-quick-actions></div>
+        <p class="capture-result small" role="alert" hidden></p>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Recent</h2><button type="button" class="link-btn small" data-goto="history">All history →</button></div>
+        <ul id="home-recent" class="entry-list"></ul>
+      </div>
+      <p class="small muted">Workflow: <strong>Capture → Classify → Review → Organize → Commit → Track history → Retrieve</strong>.</p>
+    </section>
+
+    <!-- Explore -->
+    <section id="view-explore" role="tabpanel" aria-labelledby="tab-explore" hidden>
+      <p class="small muted">Ideas for what to save. These work through normal text selection on any site; they are not official integrations with the websites named.</p>
+      <div id="explore-list"></div>
+    </section>
+
+    <!-- Capture -->
+    <section id="view-capture" role="tabpanel" aria-labelledby="tab-capture" hidden>
+      <div class="card" id="perm-card">
+        <h2>Capture from the side panel</h2>
+        <p class="small">To read your selection when you click a button here, Chrome needs your permission for Git Code Port to read pages. It is only used when you click, and you can turn it off in Settings.</p>
+        <p class="small muted">Not needed for the right-click menu, the toolbar button or the keyboard shortcut.</p>
+        <div class="actions left"><button type="button" id="perm-grant" class="btn primary small">Allow side-panel capture</button></div>
+      </div>
+      <div class="card">
+        <h2>Save the current selection as…</h2>
+        <div class="quick-grid" data-quick-actions></div>
+        <p class="capture-result small" role="alert" hidden></p>
+      </div>
+      <div class="card">
+        <h2>Other ways to capture</h2>
+        <ul class="small plain-list">
+          <li>Right-click a selection → <strong>Git Code Port</strong> → pick a type.</li>
+          <li>Toolbar button → <strong>Capture selection</strong>.</li>
+          <li>Keyboard: <kbd id="shortcut">Alt+Shift+G</kbd> (auto-detect).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section id="view-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+      <div id="history-list-view">
+        <label class="field"><span class="sr-only">Search history</span>
+          <input type="search" id="h-search" placeholder="Search title, content, tag, language, site, repo, path…" autocomplete="off">
+        </label>
+        <div class="filters">
+          <select id="h-category" aria-label="Category"><option value="">All categories</option></select>
+          <select id="h-repo" aria-label="Repository"><option value="">All repositories</option></select>
+          <select id="h-status" aria-label="Status">
+            <option value="">Any status</option>
+            <option value="confirmed">On GitHub</option>
+            <option value="local">Not on GitHub</option>
+          </select>
+        </div>
+        <p id="h-count" class="small muted"></p>
+        <ul id="h-list" class="entry-list"></ul>
+      </div>
+
+      <div id="history-detail" hidden>
+        <button type="button" class="link-btn small" id="d-back">← Back to history</button>
+        <h2 id="d-title" class="break"></h2>
+        <p><span id="d-status" class="badge"></span> <span id="d-category" class="muted small"></span></p>
+        <dl class="kv small">
+          <dt>Repository</dt><dd id="d-repo"></dd>
+          <dt>Branch</dt><dd id="d-branch"></dd>
+          <dt>Path</dt><dd id="d-path" class="break"></dd>
+          <dt>Commit</dt><dd id="d-commit"></dd>
+          <dt>Tags</dt><dd id="d-tags"></dd>
+          <dt>Language</dt><dd id="d-language"></dd>
+          <dt>Source</dt><dd id="d-source" class="break"></dd>
+          <dt>Captured</dt><dd id="d-captured"></dd>
+          <dt>Last change</dt><dd id="d-updated"></dd>
+        </dl>
+        <p id="d-error" class="bad-text small" hidden></p>
+        <p id="d-excerpt" class="excerpt small" hidden></p>
+        <div class="actions left">
+          <a id="d-open" class="btn small" target="_blank" rel="noopener noreferrer" hidden>View on GitHub ↗</a>
+          <button type="button" id="d-resume" class="btn primary small" hidden>Continue review</button>
+          <button type="button" id="d-versions-btn" class="btn small" hidden>Show versions</button>
+          <button type="button" id="d-remove" class="btn small danger">Remove from history</button>
+        </div>
+        <div id="d-versions" hidden>
+          <h3>Versions on GitHub</h3>
+          <p id="d-versions-status" class="small muted"></p>
+          <ol id="d-versions-list" class="version-list"></ol>
+          <div id="d-compare" hidden>
+            <h3 id="d-compare-title"></h3>
+            <div id="d-compare-diff"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Repositories -->
+    <section id="view-repos" role="tabpanel" aria-labelledby="tab-repos" hidden>
+      <div class="card-head">
+        <p class="small muted">Repositories your token can push to.</p>
+        <button type="button" id="r-refresh" class="btn small" aria-label="Reload repositories">↻ Reload</button>
+      </div>
+      <p id="r-status" class="small" role="status"></p>
+      <ul id="r-list" class="repo-list"></ul>
+    </section>
+
+    <!-- Settings -->
+    <section id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <div class="card">
+        <h2>GitHub account</h2>
+        <p id="s-account" class="small">Checking…</p>
+        <ul id="s-token-warnings" class="small warn-list" hidden></ul>
+        <div class="actions left">
+          <button type="button" class="btn small" data-open-options>Manage token</button>
+          <button type="button" class="btn small" id="s-check">Check connection</button>
+          <button type="button" class="btn small danger" id="s-disconnect">Disconnect</button>
+        </div>
+      </div>
+
+      <form class="card" id="s-form">
+        <h2>Capture and folders</h2>
+        <label class="field"><span>Code folder template</span><input type="text" id="s-folder-code" spellcheck="false"></label>
+        <details class="small"><summary>Folders for other categories</summary><div id="s-cat-folders"></div></details>
+        <p class="small muted">Placeholders: <code>{language}</code> <code>{platform}</code> <code>{platform:Fallback}</code> <code>{tool}</code> <code>{host}</code> <code>{yyyy}</code> <code>{mm}</code> <code>{dd}</code>.</p>
+
+        <h2>Privacy</h2>
+        <label class="check"><input type="checkbox" id="s-source-commit"> <span>Record source title, URL and time in commit messages</span></label>
+        <label class="check"><input type="checkbox" id="s-full-url"> <span>Keep the full source URL, including the query string <em class="muted">(off: only site and path, because query strings can contain private tokens)</em></span></label>
+        <label class="check"><input type="checkbox" id="s-excerpts"> <span>Keep a short excerpt (500 characters) in local history for search <em class="muted">(never for content with possible secrets)</em></span></label>
+        <p class="small">Side-panel capture permission: <strong id="s-perm">…</strong> <button type="button" class="link-btn small" id="s-perm-revoke" hidden>Turn off</button></p>
+
+        <h2>Appearance</h2>
+        <label class="field"><span>Theme</span>
+          <select id="s-theme"><option value="system">Same as system</option><option value="light">Light</option><option value="dark">Dark</option></select>
+        </label>
+        <p id="s-form-error" class="bad-text small" role="alert" hidden></p>
+        <div class="actions left"><button type="submit" class="btn primary small">Save settings</button></div>
+      </form>
+
+      <div class="card">
+        <h2>Local data</h2>
+        <p class="small">History is stored only in this browser: <strong id="s-count">0</strong> entries. Your files on GitHub are not affected by clearing it.</p>
+        <div class="actions left"><button type="button" id="s-clear" class="btn small danger">Clear history…</button></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="confirm-dialog" aria-labelledby="cd-title">
+    <form method="dialog">
+      <h2 id="cd-title"></h2>
+      <div id="cd-body" class="small"></div>
+      <label class="check" id="cd-check-row" hidden><input type="checkbox" id="cd-check"> <span id="cd-check-label"></span></label>
+      <div class="actions">
+        <button type="submit" value="cancel" class="btn small">Cancel</button>
+        <button type="submit" value="ok" id="cd-ok" class="btn small primary"></button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
