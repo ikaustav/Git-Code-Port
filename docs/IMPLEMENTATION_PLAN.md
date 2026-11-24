@@ -7,13 +7,13 @@ Release rule: **V2 is not "ready" until its authentication and security design h
 | Milestone | Scope | Status |
 |---|---|---|
 | M1 Audit | PROJECT_AUDIT, this plan, SECURITY_AUDIT | Done |
-| M2 Security foundation | Message validator, source URL redaction, size limits, notes secret scan, token type and expiry checks, auth review | Planned |
-| M3 Universal capture | Categories, local classifier, Markdown/text output, context submenu "Save as…" | Planned |
-| M4 Side panel | Home, Explore, Capture, History, Repositories, Settings | Planned |
-| M5 Version management | File commit history, line diff on conflicts, restore earlier version with confirmation | Planned |
-| M6 Organization | Tags, local index with states, search and filters, duplicate warning | Planned |
-| M7 Quality | Unit + e2e tests for new features, CI, CodeQL, Dependabot | Planned |
-| M8 Docs and release prep | README, SECURITY.md, SECURITY_AUDIT.md, CHANGELOG.md, ARCHITECTURE.md | Planned |
+| M2 Security foundation | Message validator, source URL redaction, size limits, notes secret scan, token type and expiry checks, auth review | Done (auth redesign documented, not implemented) |
+| M3 Universal capture | Categories, local classifier, Markdown/text output, context submenu "Save as…" | Done |
+| M4 Side panel | Home, Explore, Capture, History, Repositories, Settings | Done (side-panel capture on a real page tested manually only) |
+| M5 Version management | File commit history, line diff on conflicts, restore earlier version with confirmation | Done |
+| M6 Organization | Tags, local index with states, search and filters, duplicate warning | Done |
+| M7 Quality | Unit + e2e tests for new features, CI, CodeQL, Dependabot | Done (CI results to be confirmed on GitHub) |
+| M8 Docs and release prep | README, SECURITY.md, SECURITY_AUDIT.md, CHANGELOG.md, ARCHITECTURE.md | Done (demo GIF and human review outstanding) |
 
 ## Deliberately not done in this pass
 
