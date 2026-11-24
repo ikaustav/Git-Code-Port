@@ -16,12 +16,16 @@ export function renderDiff(container, oldText, newText) {
   summary.textContent = d.added || d.removed ? `${d.added} line${d.added === 1 ? '' : 's'} added, ${d.removed} removed` : 'No differences.';
   const pre = document.createElement('pre');
   pre.className = 'code-preview diff';
+  // Inner wrapper as wide as the longest line, so line backgrounds span the full scroll width.
+  const lines = document.createElement('div');
+  lines.className = 'diff-lines';
   for (const op of withContext(d.ops)) {
     const line = document.createElement('span');
     line.className = `diff-${op.type}`;
     line.textContent = `${PREFIX[op.type]}${op.text}\n`;
-    pre.append(line);
+    lines.append(line);
   }
+  pre.append(lines);
   container.append(summary, pre);
   return d;
 }

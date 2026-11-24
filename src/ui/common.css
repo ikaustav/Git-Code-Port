@@ -76,8 +76,9 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible { outline: 2px sol
 
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 640px) { .grid-3 { grid-template-columns: 1fr; } }
-.diff { max-height: 360px; }
-.diff span { display: block; white-space: pre; }
+.diff { max-height: 360px; overflow: auto; }
+.diff-lines { display: inline-block; min-width: 100%; }
+.diff-lines span { display: block; white-space: pre; }
 .diff-add { background: var(--add-bg); }
 .diff-del { background: var(--del-bg); }
 .diff-skip { color: var(--muted); font-style: italic; }
