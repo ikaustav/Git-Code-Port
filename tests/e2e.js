@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require('playwright'); // global install works via require; add it as a devDependency if missing
+const { chromium } = require('playwright'); // devDependency (npm ci); a global install also works
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const shotsArg = process.argv.indexOf('--screenshots');
 const shotsDir = shotsArg > 0 ? path.resolve(process.argv[shotsArg + 1]) : null;
