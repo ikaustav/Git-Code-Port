@@ -15,6 +15,7 @@
     .flow { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; margin: 10px 0 0; list-style: none; font-size: 11px; color: var(--muted); }
     .flow li:not(:last-child)::after { content: " →"; }
     #capture-error { margin: 8px 0 0; }
+    .mt { margin-top: 6px; }
     .history { list-style: none; padding: 0; margin: 6px 0 0; }
     .history li { padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
     .history li:last-child { border-bottom: 0; }
@@ -30,14 +31,15 @@
     <h1>Git Code Port</h1>
   </header>
   <main>
-    <p class="tagline">Capture code. Port it to Git.</p>
+    <p class="tagline">Your web. Your knowledge. Your Git history.</p>
     <div class="status"><span id="status-dot" class="dot" aria-hidden="true"></span><span id="status" class="small">Checking…</span></div>
-    <button type="button" id="capture" class="btn primary block">Capture selected code</button>
+    <button type="button" id="capture" class="btn primary block">Capture selection</button>
+    <button type="button" id="workspace" class="btn block mt">Open workspace (side panel)</button>
     <p id="capture-error" class="small bad-text" role="alert" hidden></p>
     <ol class="flow" aria-label="How it works">
-      <li>Select code</li><li>Capture</li><li>Review</li><li>Choose repository</li><li>Push</li>
+      <li>Select</li><li>Capture</li><li>Review</li><li>Organize</li><li>Commit</li>
     </ol>
-    <p class="small muted">You can also right-click a selection and choose <strong>Capture code with Git Code Port</strong><span id="shortcut-hint">, or press <kbd id="shortcut">Alt+Shift+G</kbd></span>.</p>
+    <p class="small muted">You can also right-click a selection and choose <strong>Git Code Port</strong> and a type<span id="shortcut-hint">, or press <kbd id="shortcut">Alt+Shift+G</kbd></span>.</p>
     <h2>Recent saves</h2>
     <ul id="history" class="history"></ul>
     <div class="actions"><button type="button" id="settings" class="btn small">Settings</button></div>

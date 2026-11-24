@@ -1,6 +1,9 @@
-// Renders recent saves with DOM APIs only (paths and URLs are data, never HTML).
-export function renderHistory(ul, items, limit = 20) {
+// Renders recent index entries with DOM APIs only (paths and URLs are data, never HTML).
+import { STATUS, CONFIRMED } from '../history/index.js';
+
+export function renderHistory(ul, entries, limit = 20, { confirmedOnly = true } = {}) {
   ul.replaceChildren();
+  const items = entries.filter((e) => !confirmedOnly || CONFIRMED.has(e.status)).slice(0, limit);
   if (!items.length) {
     const li = document.createElement('li');
     li.className = 'muted';
@@ -8,18 +11,16 @@ export function renderHistory(ul, items, limit = 20) {
     ul.append(li);
     return;
   }
-  for (const h of items.slice(0, limit)) {
+  for (const h of items) {
     const li = document.createElement('li');
     const a = document.createElement('a');
-    a.href = /^https:\/\/github\.com\//.test(h.url) ? h.url : '#';
+    a.href = /^https:\/\/github\.com\//.test(h.htmlUrl || '') ? h.htmlUrl : '#';
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.textContent = `${h.repo}/${h.path}`;
     const meta = document.createElement('span');
     meta.className = 'muted small';
-    let host = '';
-    try { host = h.sourceUrl ? new URL(h.sourceUrl).hostname : ''; } catch { /* ignore */ }
-    meta.textContent = `${new Date(h.savedAt).toLocaleString()}${host ? ` · from ${host}` : ''}`;
+    meta.textContent = [new Date(h.updatedAt).toLocaleString(), h.sourceHost ? `from ${h.sourceHost}` : '', STATUS[h.status] || ''].filter(Boolean).join(' · ');
     li.append(a, meta);
     ul.append(li);
   }
