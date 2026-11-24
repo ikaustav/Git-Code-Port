@@ -1,13 +1,19 @@
 // Review → confirm → push flow. Captured page text is untrusted: it is only ever placed into
 // form values or textContent, never innerHTML, and never executed.
 
-import { LANGUAGES, detectLanguage, languageFromExtension } from '../processing/languages.js';
+import { LANGUAGES, languageFromExtension } from '../processing/languages.js';
 import { suggestFilename, suggestFolder, suggestCommitMessage, metadataTrailer, sourceHeader, platformFromUrl, FOLDER_PRESETS } from '../processing/filename.js';
 import { scanForSecrets } from '../processing/secret-scan.js';
 import { validatePath, validateBranch, validateContent, joinPath, nextAvailableName, sanitizeFilename } from '../utils/validation.js';
 import { normalizeNewlines } from '../utils/encoding.js';
 import { GitHubClient, GitHubError } from '../github/api.js';
-import { getSettings, saveSettings, getToken, addHistory, getCachedRepos, setCachedRepos } from '../storage/settings.js';
+import { getSettings, saveSettings, getToken, getCachedRepos, setCachedRepos } from '../storage/settings.js';
+import { CATEGORIES, categoryById, FORMATS, formatContent } from '../classifier/categories.js';
+import { classify, expandCategoryTokens, suggestTextFilename, suggestTags, parseTags } from '../classifier/classify.js';
+import { recordEntry, getIndex, findDuplicates, sha256Hex, makeExcerpt } from '../history/index.js';
+import { redactSourceUrl, hostOf } from '../security/redact.js';
+import { renderDiff } from '../ui/diff-view.js';
+import { applyTheme } from '../ui/theme.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -15,7 +21,7 @@ const state = {
   settings: null,
   client: null,
   repos: [],
-  edited: { filename: false, folder: false, commit: false },
+  edited: { filename: false, folder: false, commit: false, format: false, tags: false },
   target: null, // { repo, branch, path, content, message }
   existing: null, // { sha, content }
   secrets: [],
@@ -44,17 +50,30 @@ async function init() {
   if (!state.capture) { show('missing'); return; }
 
   state.settings = await getSettings();
+  applyTheme(state.settings.theme);
   fillLanguageSelect();
+  fillCategorySelect();
+  fillFormatSelect();
   fillSource();
 
   const text = normalizeNewlines(state.capture.text);
   $('code').value = text;
   $('fallback-note').hidden = state.capture.method !== 'menu-fallback';
-  const det = detectLanguage(text, { languageHint: state.capture.languageHint, title: state.capture.title, url: state.capture.url });
-  $('language').value = det.id;
-  $('lang-confidence').textContent = det.id === 'text' ? '' : `detected · ${det.confidence}`;
-  $('folder').value = suggestFolder(state.settings.folderTemplate, det.id, state.capture);
+  const ctx = { languageHint: state.capture.languageHint, title: state.capture.title, url: state.capture.url };
+  const cls = classify(text, ctx);
+  $('language').value = cls.language;
+  $('lang-confidence').textContent = cls.language === 'text' ? '' : `detected · ${cls.languageConfidence}`;
+  if (state.capture.category && categoryById[state.capture.category]) {
+    $('category').value = state.capture.category;
+    $('cat-confidence').textContent = 'chosen';
+  } else {
+    $('category').value = cls.category;
+    $('cat-confidence').textContent = `suggested · ${cls.confidence}`;
+  }
+  $('format').value = defaultFormat();
   $('add-header').checked = !!state.settings.addSourceHeader;
+  $('url-mode').textContent = state.settings.fullSourceUrl ? '(full URL)' : '(URL without query string)';
+  recordEntry(baseEntry({ status: 'captured' }));
   $('add-source-commit').checked = state.settings.includeSourceInCommit !== false;
   refreshSuggestions();
   rescanSecrets();
@@ -75,11 +94,54 @@ function fillLanguageSelect() {
   }
 }
 
+function fillCategorySelect() {
+  for (const c of CATEGORIES) {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.name;
+    o.title = c.description;
+    $('category').append(o);
+  }
+}
+
+function fillFormatSelect() {
+  for (const f of FORMATS) {
+    const o = document.createElement('option');
+    o.value = f.id;
+    o.textContent = f.name;
+    $('format').append(o);
+  }
+}
+
+function defaultFormat() {
+  const cat = categoryById[$('category').value] || categoryById.code;
+  // Source-file categories fall back to Markdown when no language was detected.
+  if (cat.format === 'source' && $('language').value === 'text' && cat.id !== 'config') return 'md';
+  return cat.format;
+}
+
+/** Folder template for the chosen category, with repository base folder applied. */
+function folderFor(category, lang) {
+  const cat = categoryById[category] || categoryById.code;
+  const overrides = state.settings.categoryFolders || {};
+  const template = category === 'code' ? (overrides.code ?? state.settings.folderTemplate) : (overrides[category] ?? cat.folder);
+  const expanded = suggestFolder(expandCategoryTokens(template, $('code').value, state.capture), lang, state.capture);
+  const base = ((state.settings.repoDefaults || {})[$('repo').value] || {}).baseFolder || '';
+  return joinPath(base, expanded).replace(/\/$/, '');
+}
+
+function filenameFor() {
+  const format = $('format').value;
+  const lang = $('language').value;
+  if (format === 'source') return suggestFilename($('code').value, lang, state.capture);
+  return suggestTextFilename($('category').value, $('code').value, format, state.capture);
+}
+
 function fillFolderList() {
   const lang = $('language').value;
   const ideas = new Set([
-    suggestFolder(state.settings.folderTemplate, lang, state.capture),
-    suggestFolder('{language}', lang, state.capture),
+    folderFor($('category').value, lang),
+    ...CATEGORIES.map((c) => folderFor(c.id, lang)),
     platformFromUrl(state.capture.url),
     ...FOLDER_PRESETS,
   ].filter(Boolean));
@@ -99,16 +161,19 @@ function fillSource() {
   $('source-host').textContent = host ? `· ${host}` : '';
   $('source-title').textContent = c.title || '(no title)';
   $('source-url').textContent = c.url || '(unknown)';
+  $('source-url').title = 'Recorded in the commit as: ' + (redactSourceUrl(c.url, { keepQuery: !!state.settings.fullSourceUrl }) || '(nothing)');
   $('source-time').textContent = new Date(c.capturedAt).toLocaleString();
 }
 
 // ---------- suggestions ----------
 function refreshSuggestions() {
   const lang = $('language').value;
-  const code = $('code').value;
-  if (!state.edited.filename) $('filename').value = suggestFilename(code, lang, state.capture);
-  if (!state.edited.folder) $('folder').value = suggestFolder(state.settings.folderTemplate, lang, state.capture);
+  if (!state.edited.format) $('format').value = defaultFormat();
+  if (!state.edited.filename) $('filename').value = filenameFor();
+  if (!state.edited.folder) $('folder').value = folderFor($('category').value, lang);
   if (!state.edited.commit) $('commit').value = suggestCommitMessage($('filename').value);
+  if (!state.edited.tags) $('tags').value = suggestTags($('code').value, $('category').value, lang, state.capture).join(', ');
+  $('add-header').disabled = $('format').value !== 'source';
   fillFolderList();
   updateDestination();
 }
@@ -129,7 +194,12 @@ function updateStats() {
 
 let scanTimer;
 function rescanSecrets() {
-  state.secrets = scanForSecrets($('code').value);
+  // Notes go into the commit message, so they are scanned too.
+  const notes = $('notes').value;
+  state.secrets = [
+    ...scanForSecrets($('code').value),
+    ...scanForSecrets(notes).map((f) => ({ ...f, type: `${f.type} in notes` })),
+  ];
   const list = $('secret-list');
   list.replaceChildren();
   for (const f of state.secrets) {
@@ -165,6 +235,7 @@ async function connect(forceRefresh) {
     const pick = [state.settings.lastRepo, state.settings.defaultRepo].find((r) => r && repos.some((x) => x.fullName === r)) || (repos[0] && repos[0].fullName) || '';
     $('repo').value = pick;
     await loadBranches();
+    if (!state.edited.folder) refreshSuggestions();
   } catch (err) {
     setRepoOptions([], 'Could not load repositories');
     if (err instanceof GitHubError && err.kind === 'auth') $('connect-banner').hidden = false;
@@ -196,7 +267,9 @@ async function loadBranches() {
   const repo = state.repos.find((r) => r.fullName === full);
   $('branch-list').replaceChildren();
   if (!repo) { updateDestination(); return; }
+  const repoDefault = ((state.settings.repoDefaults || {})[full] || {}).branch;
   const preferred = (full === state.settings.lastRepo && state.settings.lastBranch)
+    || repoDefault
     || (full === state.settings.defaultRepo && state.settings.defaultBranch)
     || repo.defaultBranch;
   $('branch').value = preferred;
@@ -225,23 +298,64 @@ function showFormErrors(errors) {
 
 function buildTarget() {
   const lang = $('language').value;
+  const format = $('format').value;
   const code = normalizeNewlines($('code').value);
-  const header = $('add-header').checked ? sourceHeader(lang, state.capture, state.capture.capturedAt) : '';
+  const header = format === 'source' && $('add-header').checked ? sourceHeader(lang, state.capture, state.capture.capturedAt) : '';
   const subject = $('commit').value.trim() || suggestCommitMessage($('filename').value);
-  const langName = ($('language').selectedOptions[0] || {}).dataset?.name || lang;
+  const langName = lang === 'text' ? '' : (($('language').selectedOptions[0] || {}).dataset?.name || lang);
+  const tags = parseTags($('tags').value);
+  const category = $('category').value;
   const trailer = metadataTrailer(state.capture, state.capture.capturedAt, {
     includeSource: $('add-source-commit').checked,
+    fullUrl: !!state.settings.fullSourceUrl,
     language: langName,
+    category: (categoryById[category] || {}).name || '',
+    tags,
     notes: $('notes').value,
   });
+  const fence = lang === 'text' ? '' : lang;
   return {
     repo: $('repo').value,
     branch: $('branch').value.trim(),
     path: currentPath(),
-    content: header + code,
+    content: header + formatContent(code, format, fence),
     message: `${subject}\n\n${trailer}`,
     subject,
+    category,
+    language: lang,
+    tags,
   };
+}
+
+/** Index entry fields that describe this capture. */
+function baseEntry(extra = {}) {
+  const c = state.capture;
+  return {
+    id: c.id,
+    title: c.title ? String(c.title).slice(0, 200) : (String(c.text).trim().split('\n')[0] || '').slice(0, 120),
+    sourceHost: hostOf(c.url),
+    sourceUrl: redactSourceUrl(c.url, { keepQuery: !!state.settings.fullSourceUrl }),
+    category: $('category').value,
+    language: $('language').value,
+    capturedAt: c.capturedAt,
+    ...extra,
+  };
+}
+
+async function recordTarget(status, extra = {}) {
+  const t = state.target;
+  await recordEntry(baseEntry({
+    status,
+    category: t.category,
+    language: t.language,
+    tags: t.tags,
+    repo: t.repo,
+    branch: t.branch,
+    path: t.path,
+    contentHash: state.contentHash,
+    excerpt: makeExcerpt($('code').value, { enabled: state.settings.storeExcerpts !== false, hasSecrets: state.secrets.length > 0 }),
+    ...extra,
+  }));
 }
 
 function validateForm(t) {
@@ -256,12 +370,26 @@ function validateForm(t) {
   return errors;
 }
 
-function goConfirm() {
+async function goConfirm() {
   const t = buildTarget();
   const errors = validateForm(t);
   showFormErrors(errors);
   if (errors.length) return;
   state.target = t;
+  state.contentHash = await sha256Hex(t.content);
+  const dups = findDuplicates(await getIndex(), state.contentHash, state.capture.id).slice(0, 3);
+  const dl = $('c-duplicate-list');
+  dl.replaceChildren();
+  for (const d of dups) {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.textContent = `${d.repo}/${d.path}`;
+    if (d.htmlUrl) { a.href = d.htmlUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    li.append(a, document.createTextNode(` · ${new Date(d.updatedAt).toLocaleDateString()}`));
+    dl.append(li);
+  }
+  $('c-duplicate').hidden = dups.length === 0;
+  $('c-message').textContent = t.message;
   $('c-repo').textContent = t.repo;
   $('c-branch').textContent = t.branch;
   $('c-path').textContent = t.path;
@@ -286,6 +414,7 @@ async function attemptPush(raceRetries = 1) {
   const t = state.target;
   const gh = state.client;
   try {
+    await recordTarget('pending');
     working('Checking branch…');
     if (!(await gh.branchExists(t.repo, t.branch))) {
       throw new GitHubError('not_found', `Branch "${t.branch}" does not exist in ${t.repo}. Pick an existing branch.`);
@@ -296,17 +425,18 @@ async function attemptPush(raceRetries = 1) {
     if (existing) {
       if (existing.content !== null && existing.content === t.content) {
         // Same content already there (e.g. a retry after a dropped connection). Nothing to commit.
-        await done({ htmlUrl: existing.htmlUrl }, 'This exact file is already on GitHub');
+        await done({ htmlUrl: existing.htmlUrl }, 'This exact file is already on GitHub', 'duplicate');
         return;
       }
       state.existing = existing;
+      await recordTarget('conflict');
       showConflict(existing);
       return;
     }
     working('Saving to GitHub…');
     try {
       const res = await gh.putFile(t.repo, t.path, { content: t.content, message: t.message, branch: t.branch });
-      await done(res, 'Saved to GitHub');
+      await done(res, 'Saved to GitHub', 'uploaded');
     } catch (err) {
       // Someone created the file between our check and the write: re-check instead of overwriting.
       if (err instanceof GitHubError && err.kind === 'conflict' && raceRetries > 0) { await attemptPush(raceRetries - 1); return; }
@@ -323,6 +453,8 @@ function showConflict(existing) {
   $('x-branch').textContent = t.branch;
   $('x-existing').textContent = existing.content ?? '(The existing file is too large or binary to preview.)';
   $('x-new').textContent = t.content;
+  if (existing.content !== null) renderDiff($('x-diff'), existing.content, t.content);
+  else $('x-diff').textContent = 'The existing file is too large or binary to compare.';
   $('x-update-confirm-row').hidden = true;
   $('x-update-confirm').checked = false;
   $('x-update').textContent = 'Replace the existing file…';
@@ -364,11 +496,11 @@ async function updateExisting() {
   try {
     working('Updating the file on GitHub…');
     const res = await state.client.putFile(t.repo, t.path, { content: t.content, message, branch: t.branch, sha: state.existing.sha });
-    await done(res, 'Updated on GitHub');
+    await done(res, 'Updated on GitHub', 'updated');
   } catch (err) { showError(err); }
 }
 
-async function done(res, title) {
+async function done(res, title, status) {
   const t = state.target;
   $('s-title').textContent = title;
   $('s-repo').textContent = t.repo;
@@ -380,12 +512,13 @@ async function done(res, title) {
   $('s-link').href = url;
   show('success');
   state.settings = await saveSettings({ lastRepo: t.repo, lastBranch: t.branch });
-  await addHistory({ repo: t.repo, branch: t.branch, path: t.path, url, sourceUrl: state.capture.url, savedAt: new Date().toISOString() });
+  await recordTarget(status, { htmlUrl: url, commitSha: res.commitSha || '', commitUrl: res.commitUrl || '', error: '' });
   await chrome.storage.session.remove(`capture:${state.capture.id}`);
 }
 
 function showError(err) {
-  const e = err instanceof GitHubError ? err : new GitHubError('unexpected', 'Something unexpected went wrong in the extension. Your code is still here; go back and try again.', { detail: String(err && err.message).slice(0, 300) });
+  const e = err instanceof GitHubError ? err : new GitHubError('unexpected', 'Something unexpected went wrong in the extension. Your content is still here; go back and try again.', { detail: String(err && err.message).slice(0, 300) });
+  if (state.target) recordTarget('failed', { error: e.message.slice(0, 200) });
   $('e-message').textContent = e.message;
   $('e-detail').textContent = e.detail || `(${e.kind}${e.status ? `, HTTP ${e.status}` : ''})`;
   $('e-retry').hidden = !(e.retryable || e.kind === 'conflict');
@@ -404,14 +537,18 @@ function wireEvents() {
   $('open-settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
   $('e-settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
   $('refresh-repos').addEventListener('click', async () => { state.settings = await getSettings(); await connect(true); });
-  $('repo').addEventListener('change', loadBranches);
+  $('repo').addEventListener('change', async () => { await loadBranches(); if (!state.edited.folder) refreshSuggestions(); });
   $('branch').addEventListener('input', updateDestination);
 
   $('language').addEventListener('change', () => { $('lang-confidence').textContent = ''; refreshSuggestions(); });
+  $('category').addEventListener('change', () => { $('cat-confidence').textContent = ''; state.edited.format = false; refreshSuggestions(); });
+  $('format').addEventListener('change', () => { state.edited.format = true; refreshSuggestions(); });
+  $('tags').addEventListener('input', () => { state.edited.tags = true; });
+  $('notes').addEventListener('input', () => { clearTimeout(scanTimer); scanTimer = setTimeout(rescanSecrets, 250); });
   $('filename').addEventListener('input', () => {
     state.edited.filename = true;
     const fromExt = languageFromExtension($('filename').value);
-    if (fromExt && fromExt !== $('language').value) { $('language').value = fromExt; $('lang-confidence').textContent = 'from extension'; }
+    if ($('format').value === 'source' && fromExt && fromExt !== $('language').value) { $('language').value = fromExt; $('lang-confidence').textContent = 'from extension'; }
     if (!state.edited.commit) $('commit').value = suggestCommitMessage($('filename').value);
     updateDestination();
   });

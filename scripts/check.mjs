@@ -33,10 +33,14 @@ if (manifest) {
   if (!/^\d+(\.\d+){0,3}$/.test(manifest.version || '')) problems.push('version must be 1-4 dot-separated integers');
   if (manifest.background && manifest.background.scripts) problems.push('MV3 uses background.service_worker, not background.scripts');
   if (manifest.browser_action || manifest.page_action) problems.push('MV3 uses "action", not browser_action/page_action');
-  const allowedPerms = new Set(['contextMenus', 'storage', 'activeTab', 'scripting']);
+  const allowedPerms = new Set(['contextMenus', 'storage', 'activeTab', 'scripting', 'sidePanel']);
   for (const p of manifest.permissions || []) if (!allowedPerms.has(p)) problems.push(`unexpected permission "${p}" (update scripts/check.mjs and the README if intended)`);
   const hosts = manifest.host_permissions || [];
   if (hosts.length !== 1 || hosts[0] !== 'https://api.github.com/*') problems.push(`host_permissions should be only https://api.github.com/* (got ${JSON.stringify(hosts)})`);
+  const optional = manifest.optional_host_permissions || [];
+  if (optional.some((o) => !['https://*/*', 'http://*/*'].includes(o))) problems.push(`unexpected optional_host_permissions ${JSON.stringify(optional)}`);
+  if (manifest.optional_permissions) problems.push('unexpected optional_permissions');
+  if (manifest.web_accessible_resources) problems.push('web_accessible_resources would expose extension pages to websites');
   if (manifest.content_scripts) problems.push('no persistent content scripts expected');
   if (manifest.externally_connectable) problems.push('externally_connectable would let web pages message the extension');
   const csp = (manifest.content_security_policy || {}).extension_pages || '';
@@ -46,6 +50,7 @@ if (manifest) {
     manifest.background && manifest.background.service_worker,
     manifest.action && manifest.action.default_popup,
     manifest.options_ui && manifest.options_ui.page,
+    manifest.side_panel && manifest.side_panel.default_path,
     ...Object.values(manifest.icons || {}),
     ...Object.values((manifest.action && manifest.action.default_icon) || {}),
   ].filter(Boolean);

@@ -1,13 +1,16 @@
 {
   "name": "git-code-port",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Git Code Port: a Manifest V3 browser extension that captures code from any webpage and saves it to GitHub.",
+  "description": "Git Code Port: capture code and knowledge from any webpage and save it to your GitHub repositories (Manifest V3 extension).",
   "scripts": {
-    "test": "node --test tests/unit.test.js",
+    "test": "node --test tests/unit.test.js tests/v2.test.js",
     "test:e2e": "node tests/e2e.js",
     "check": "node scripts/check.mjs",
     "package": "bash scripts/package.sh"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
   }
 }

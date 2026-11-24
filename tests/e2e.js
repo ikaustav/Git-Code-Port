@@ -14,9 +14,10 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require('playwright'); // global install works via require; add it as a devDependency if missing
+const { chromium } = require('playwright'); // devDependency (npm ci); a global install also works
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const shotsArg = process.argv.indexOf('--screenshots');
 const shotsDir = shotsArg > 0 ? path.resolve(process.argv[shotsArg + 1]) : null;
@@ -32,6 +33,8 @@ fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
 // ---- mock GitHub ----
 const files = new Map(); // "branch:path" -> content
 const puts = [];
+const commits = []; // { sha, path, branch, content, message, date }
+const BIG = 'x'.repeat(1100 * 1024);
 const TOKEN = 'github_pat_TESTTOKEN_not_real_0000000000';
 function json(route, status, body) { return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }); }
 function sha(s) { let h = 0; for (const c of s) h = (h * 31 + c.codePointAt(0)) >>> 0; return h.toString(16).padStart(8, '0'); }
@@ -42,7 +45,13 @@ async function githubMock(route) {
   const auth = req.headers()['authorization'];
   if (auth !== `Bearer ${TOKEN}`) return json(route, 401, { message: 'Bad credentials' });
   const p = decodeURIComponent(url.pathname);
-  if (p === '/user') return json(route, 200, { login: 'test-user' });
+  if (p === '/user') return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'github-authentication-token-expiration': '2099-01-01 00:00:00 UTC' }, body: JSON.stringify({ login: 'test-user' }) });
+  if (p === '/repos/test-user/coding-notes/commits') {
+    const path = url.searchParams.get('path');
+    const branch = url.searchParams.get('sha');
+    const list = commits.filter((c) => c.path === path && c.branch === branch).slice().reverse();
+    return json(route, 200, list.map((c) => ({ sha: c.sha, html_url: `https://github.com/test-user/coding-notes/commit/${c.sha}`, commit: { message: c.message, author: { name: 'Test', date: c.date } }, author: { login: 'test-user' } })));
+  }
   if (p === '/user/repos') return json(route, 200, [
     { full_name: 'test-user/coding-notes', default_branch: 'main', private: false, archived: false, permissions: { push: true } },
     { full_name: 'test-user/read-only', default_branch: 'main', private: false, archived: false, permissions: { push: false } },
@@ -54,9 +63,17 @@ async function githubMock(route) {
   if ((m = p.match(/^\/repos\/test-user\/coding-notes\/contents\/(.+)$/))) {
     const filePath = m[1];
     if (req.method() === 'GET') {
-      const key = `${url.searchParams.get('ref')}:${filePath}`;
-      if (!files.has(key)) return json(route, 404, { message: 'Not Found' });
-      const content = files.get(key);
+      const ref = url.searchParams.get('ref');
+      let content;
+      if (/^[0-9a-f]{40}$/.test(ref)) {
+        const c = commits.find((x) => x.sha === ref && x.path === filePath);
+        if (!c) return json(route, 404, { message: 'Not Found' });
+        content = c.content;
+      } else {
+        const key = `${ref}:${filePath}`;
+        if (!files.has(key)) return json(route, 404, { message: 'Not Found' });
+        content = files.get(key);
+      }
       return json(route, 200, { type: 'file', sha: sha(content), encoding: 'base64', content: Buffer.from(content).toString('base64').replace(/(.{60})/g, '$1\n'), html_url: `https://github.com/test-user/coding-notes/blob/main/${filePath}` });
     }
     if (req.method() === 'PUT') {
@@ -66,7 +83,9 @@ async function githubMock(route) {
       if (files.has(key) && body.sha !== sha(files.get(key))) return json(route, 422, { message: '"sha" wasn\'t supplied.' });
       files.set(key, content);
       puts.push({ path: filePath, body, content });
-      return json(route, files.has(key) && body.sha ? 200 : 201, { content: { html_url: `https://github.com/test-user/coding-notes/blob/${body.branch}/${filePath}`, sha: sha(content) }, commit: { html_url: 'https://github.com/test-user/coding-notes/commit/abc' } });
+      const commitSha = crypto.createHash('sha1').update(`${commits.length}:${filePath}:${content}`).digest('hex');
+      commits.push({ sha: commitSha, path: filePath, branch: body.branch, content, message: body.message, date: new Date(Date.now() + commits.length * 1000).toISOString() });
+      return json(route, body.sha ? 200 : 201, { content: { path: filePath, html_url: `https://github.com/test-user/coding-notes/blob/${body.branch}/${filePath}`, sha: sha(content) }, commit: { sha: commitSha, html_url: `https://github.com/test-user/coding-notes/commit/${commitSha}` } });
     }
   }
   return json(route, 404, { message: `unmocked ${req.method()} ${p}` });
@@ -78,7 +97,12 @@ const PAGE = `<!doctype html><title>Recursion in Python - Tutorial</title>
 <h1>Tutorial</h1><p>Some prose.</p>
 <pre id="py"><code class="language-python">${PY.replace(/</g, '&lt;')}</code></pre>
 <pre id="secret">API_KEY = "AKIAIOSFODNN7EXAMPLE"\npassword = "hunter2hunter2"</pre>
-<pre id="xss">&lt;img src=x onerror="document.title='pwned'"&gt;&lt;script&gt;alert(1)&lt;/script&gt;</pre>`;
+<pre id="xss">&lt;img src=x onerror="document.title='pwned'"&gt;&lt;script&gt;alert(1)&lt;/script&gt;</pre>
+<ul id="notes"><li>Arrays are stored contiguously</li><li>Linked lists use pointers</li><li>Hash maps give O(1) average lookup</li></ul>
+<pre id="cmds">git checkout -b feature
+git add .
+git commit -m "work"</pre>
+<pre id="big">${BIG}</pre>`;
 
 const results = [];
 async function step(name, fn) {
@@ -110,9 +134,9 @@ await sw.evaluate(async ({ token }) => {
 }, { token: TOKEN });
 
 const site = await context.newPage();
-await site.goto('http://gcp.test/tutorial');
+await site.goto('http://gcp.test/tutorial?session=SECRET123#frag');
 
-async function captureSelection(selector, { waitForRepos = true } = {}) {
+async function captureSelection(selector, { waitForRepos = true, category } = {}) {
   await site.bringToFront();
   const collapsed = await site.evaluate((sel) => {
     const el = document.querySelector(sel);
@@ -124,11 +148,11 @@ async function captureSelection(selector, { waitForRepos = true } = {}) {
     return s.toString().replace(/\s+/g, ' '); // what info.selectionText would look like
   }, selector);
   const reviewPromise = context.waitForEvent('page');
-  await sw.evaluate(async ({ collapsed }) => {
+  await sw.evaluate(async ({ collapsed, category }) => {
     const [tab] = await chrome.tabs.query({ url: 'http://gcp.test/*' });
-    const r = await globalThis.__gcpCapture(tab, { frameId: 0, pageUrl: tab.url, selectionText: collapsed });
+    const r = await globalThis.__gcpCapture(tab, { frameId: 0, pageUrl: tab.url, selectionText: collapsed, category });
     if (!r.ok) throw new Error(r.error);
-  }, { collapsed });
+  }, { collapsed, category });
   const review = await reviewPromise;
   await review.waitForLoadState('domcontentloaded');
   await review.waitForSelector('#screen-review:not([hidden])');
@@ -188,7 +212,8 @@ await step('confirm screen then push creates the file with notes and source meta
   assert.equal(puts[0].content, PY);
   assert.equal(puts[0].body.branch, 'main');
   assert.equal(puts[0].body.sha, undefined);
-  assert.match(puts[0].body.message, /^Add fibonacci\n\nNeeds memoization\.\n\nSource title: Recursion in Python - Tutorial\nSource URL: http:\/\/gcp\.test\/tutorial\nCaptured: .+\nLanguage: Python\nSaved with Git Code Port$/);
+  assert.match(puts[0].body.message, /^Add fibonacci\n\nNeeds memoization\.\n\nSource title: Recursion in Python - Tutorial\nSource URL: http:\/\/gcp\.test\/tutorial\nCaptured: .+\nCategory: Code\nLanguage: Python\nTags: python\nSaved with Git Code Port$/);
+  assert.ok(!puts[0].body.message.includes('SECRET123'), 'query string is not recorded by default');
   assert.equal(await review.getAttribute('#s-link', 'href'), 'https://github.com/test-user/coding-notes/blob/main/Python/Recursion/fibonacci.py');
   assert.equal(await review.getAttribute('#stepper li.active', 'data-step'), 'done');
   if (shotsDir) await review.screenshot({ path: path.join(shotsDir, '4-success.png'), fullPage: true });
@@ -208,11 +233,14 @@ await step('identical file already on GitHub is reported without a duplicate com
 
 await step('existing file with different content: conflict screen, nothing overwritten, save as another file', async () => {
   files.set('main:Python/fibonacci.py', 'print("old version")\n');
+  commits.push({ sha: 'f'.repeat(40), path: 'Python/fibonacci.py', branch: 'main', content: 'print("old version")\n', message: 'Initial version', date: '2026-01-01T00:00:00Z' });
   review = await captureSelection('#py code');
   await review.click('#to-confirm');
   await review.click('#do-push');
   await review.waitForSelector('#screen-conflict:not([hidden])');
   assert.equal(await review.textContent('#x-existing'), 'print("old version")\n');
+  assert.match(await review.textContent('#x-diff'), /4 lines added, 2 removed/);
+  assert.equal(await review.$$eval('#x-diff .diff-del', (e) => e.map((x) => x.textContent)).then((d) => d[0]), '- print("old version")\n');
   if (shotsDir) await review.screenshot({ path: path.join(shotsDir, '3-conflict.png'), fullPage: true });
   assert.equal(puts.length, 1, 'no write happened yet');
   await review.click('#x-rename');
@@ -252,7 +280,7 @@ await step('source metadata can be left out of the commit', async () => {
   await review.click('#to-confirm');
   await review.click('#do-push');
   await review.waitForSelector('#screen-success:not([hidden])');
-  assert.equal(puts.at(-1).body.message, 'Add fib_plain\n\nSaved with Git Code Port');
+  assert.equal(puts.at(-1).body.message, 'Add fib_plain\n\nCategory: Code\nLanguage: Python\nTags: python\nSaved with Git Code Port');
   assert.equal(puts.at(-1).content, PY, 'code file has no metadata added');
   await review.close();
 });
@@ -266,7 +294,7 @@ await step('empty selection does not open a review window', async () => {
     return globalThis.__gcpCapture(tab, {});
   });
   assert.equal(r.ok, false);
-  assert.match(r.error, /No code selected/);
+  assert.match(r.error, /Nothing is selected/);
   await new Promise((res) => setTimeout(res, 300));
   assert.equal(context.pages().length, before);
 });
@@ -355,6 +383,185 @@ await step('settings page connects with a token, then disconnect clears it', asy
   const after = await sw.evaluate(async () => (await chrome.storage.session.get('githubToken')).githubToken);
   assert.equal(after, undefined);
   await opt.close();
+});
+
+
+// The settings test above disconnected; reconnect the fake token for the V2 checks.
+await sw.evaluate(async ({ token }) => {
+  await chrome.storage.session.set({ githubToken: token });
+  const { settings } = await chrome.storage.local.get('settings');
+  await chrome.storage.local.set({ settings: { ...settings, githubLogin: 'test-user' } });
+}, { token: TOKEN });
+
+await step('notes are classified, saved as Markdown in Learning/Notes, content unchanged', async () => {
+  review = await captureSelection('#notes');
+  assert.equal(await review.inputValue('#category'), 'notes');
+  assert.equal(await review.inputValue('#format'), 'md');
+  assert.equal(await review.inputValue('#folder'), 'Learning/Notes');
+  assert.match(await review.inputValue('#filename'), /\.md$/);
+  const text = await review.inputValue('#code');
+  await review.click('#to-confirm');
+  await review.click('#do-push');
+  await review.waitForSelector('#screen-success:not([hidden])');
+  assert.equal(puts.at(-1).content, text);
+  assert.match(puts.at(-1).path, /^Learning\/Notes\/.+\.md$/);
+  assert.match(puts.at(-1).body.message, /\nCategory: Study notes\n/);
+  await review.close();
+});
+
+await step('"Save as commands" menu choice saves a fenced Markdown file under Developer-Tools/Git', async () => {
+  review = await captureSelection('#cmds', { category: 'commands' });
+  assert.equal(await review.inputValue('#category'), 'commands');
+  assert.equal(await review.inputValue('#format'), 'md-code');
+  assert.equal(await review.inputValue('#folder'), 'Developer-Tools/Git');
+  assert.equal(await review.inputValue('#filename'), 'git-commands.md');
+  await review.click('#to-confirm');
+  assert.match(await review.textContent('#c-preview'), /^```\ngit checkout -b feature\n[\s\S]+\n```\n$/);
+  await review.click('#do-push');
+  await review.waitForSelector('#screen-success:not([hidden])');
+  await review.close();
+});
+
+await step('identical content saved before is flagged on the confirm screen', async () => {
+  review = await captureSelection('#notes');
+  await review.fill('#filename', 'notes-copy.md');
+  await review.click('#to-confirm');
+  await review.waitForSelector('#c-duplicate:not([hidden])');
+  assert.match(await review.textContent('#c-duplicate-list'), /test-user\/coding-notes\/Learning\/Notes\//);
+  await review.close();
+});
+
+await step('selections over 1 MB are refused with a clear message, nothing stored', async () => {
+  await site.bringToFront();
+  await site.evaluate(() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('#big')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); });
+  const r = await sw.evaluate(async () => {
+    const [tab] = await chrome.tabs.query({ url: 'http://gcp.test/*' });
+    const res = await globalThis.__gcpCapture(tab, { frameId: 0 });
+    const keys = Object.keys(await chrome.storage.session.get(null)).filter((k) => k.startsWith('capture:'));
+    return { res, keys: keys.length };
+  });
+  assert.equal(r.res.ok, false);
+  assert.match(r.res.error, /too large \(1\.1 MB\)/);
+});
+
+await step('service worker rejects malformed or unknown messages from extension pages', async () => {
+  const pg = await context.newPage();
+  await pg.goto(`chrome-extension://${extId}/src/popup/popup.html`);
+  const out = await pg.evaluate(async () => Promise.all([
+    chrome.runtime.sendMessage({ type: 'capture-active-tab', category: 'evil' }),
+    chrome.runtime.sendMessage({ type: 'push-file', path: 'x' }),
+    chrome.runtime.sendMessage({ type: 'capture-active-tab', tabId: 1 }),
+    chrome.runtime.sendMessage('capture-active-tab'),
+  ]));
+  for (const r of out) assert.deepEqual(r, { ok: false, error: 'Request rejected.' });
+  await pg.close();
+});
+
+let panel;
+await step('side panel: navigation, home recent list, explore cards', async () => {
+  await sw.evaluate(async () => {
+    // A hostile title in the index must render as text.
+    const { captureIndex } = await chrome.storage.local.get('captureIndex');
+    captureIndex.push({ id: 'evil', status: 'captured', title: '<img src=x onerror="document.title=\'pwned\'">', category: 'resource', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2000-01-01T00:00:00Z' });
+    await chrome.storage.local.set({ captureIndex });
+  });
+  panel = await context.newPage();
+  await panel.setViewportSize({ width: 400, height: 900 });
+  await panel.goto(`chrome-extension://${extId}/src/sidepanel/sidepanel.html`);
+  await panel.waitForSelector('#home-recent li .entry');
+  assert.match(await panel.textContent('#home-account'), /Connected to GitHub as @test-user/);
+  assert.equal(await panel.$$eval('#home-recent li', (l) => l.length), 5);
+  await panel.click('#tab-explore');
+  assert.equal(await panel.isVisible('#view-explore'), true);
+  assert.equal(await panel.isHidden('#view-home'), true);
+  assert.equal(await panel.$$eval('#explore-list article', (a) => a.length), 5);
+  await panel.press('#tab-explore', 'ArrowRight');
+  assert.equal(await panel.isVisible('#view-capture'), true, 'arrow keys move between tabs');
+  assert.equal(await panel.$$eval('#view-capture .quick', (q) => q.length), 6);
+  if (shotsDir) { await panel.click('#tab-home'); await panel.screenshot({ path: path.join(shotsDir, '6-sidepanel-home.png'), fullPage: true }); }
+});
+
+await step('side panel: history search, filters, states and safe rendering', async () => {
+  await panel.click('#tab-history');
+  await panel.waitForSelector('#h-list li .entry');
+  const total = await panel.$$eval('#h-list li', (l) => l.length);
+  assert.ok(total >= 8, `expected history entries, got ${total}`);
+  assert.equal(await panel.$$eval('img[src="x"]', (i) => i.length), 0);
+  assert.notEqual(await panel.title(), 'pwned');
+  await panel.fill('#h-search', 'git-commands');
+  await panel.waitForFunction(() => document.querySelectorAll('#h-list li .entry').length === 1);
+  await panel.fill('#h-search', '');
+  await panel.selectOption('#h-category', 'notes');
+  await panel.waitForFunction(() => [...document.querySelectorAll('#h-list .entry-meta')].every((m) => m.textContent.includes('Study notes')));
+  await panel.selectOption('#h-category', '');
+  await panel.selectOption('#h-status', 'local');
+  const local = await panel.$$eval('#h-list .badge', (b) => b.map((x) => x.textContent));
+  assert.ok(local.length && local.every((t) => !['Uploaded', 'Updated on GitHub', 'Already on GitHub', 'Restored on GitHub'].includes(t)), local.join(','));
+  await panel.selectOption('#h-status', '');
+  if (shotsDir) await panel.screenshot({ path: path.join(shotsDir, '7-sidepanel-history.png'), fullPage: true });
+});
+
+await step('side panel: version history, compare and restore with explicit confirmation', async () => {
+  await panel.fill('#h-search', 'fibonacci.py');
+  await panel.waitForFunction(() => [...document.querySelectorAll('#h-list .entry-title')].some((t) => t.textContent === 'fibonacci.py'));
+  await panel.click('#h-list .entry:has(.badge:text-is("Updated on GitHub"))');
+  await panel.waitForSelector('#history-detail:not([hidden])');
+  assert.equal(await panel.textContent('#d-path'), 'Python/fibonacci.py');
+  assert.match(await panel.textContent('#d-commit'), /^[0-9a-f]{7}$/);
+  await panel.click('#d-versions-btn');
+  await panel.waitForSelector('#d-versions-list li');
+  assert.equal(await panel.$$eval('#d-versions-list li', (l) => l.length), 2);
+  await panel.click('#d-versions-list li:nth-child(2) button:text("Compare with current")');
+  await panel.waitForSelector('#d-compare-diff .diff');
+  const before = puts.length;
+  await panel.click('#d-versions-list li:nth-child(2) button:text("Restore…")');
+  await panel.waitForSelector('#confirm-dialog[open]');
+  assert.match(await panel.textContent('#cd-body'), /Python\/fibonacci\.py/);
+  assert.equal(await panel.isDisabled('#cd-ok'), true, 'restore needs the checkbox');
+  if (shotsDir) await panel.screenshot({ path: path.join(shotsDir, '8-sidepanel-restore.png'), fullPage: true });
+  await panel.check('#cd-check');
+  await panel.click('#cd-ok');
+  await panel.waitForFunction(() => document.querySelector('#d-status').textContent === 'Restored on GitHub');
+  assert.equal(puts.length, before + 1);
+  assert.equal(puts.at(-1).content, 'print("old version")\n');
+  assert.ok(puts.at(-1).body.sha, 'restore sends the current SHA');
+  assert.match(puts.at(-1).body.message, /^Restore fibonacci\.py to [0-9a-f]{7}/);
+  await panel.click('#d-back');
+  await panel.fill('#h-search', '');
+});
+
+await step('side panel: repositories and settings (token type and expiry, privacy toggles)', async () => {
+  await panel.click('#tab-repos');
+  await panel.waitForSelector('#r-list li.repo');
+  assert.equal(await panel.$$eval('#r-list li.repo', (l) => l.length), 1);
+  await panel.click('#r-list li.repo button:text("Make default")');
+  await panel.waitForSelector('#r-list li.repo button:text("Default ✓")');
+  const s1 = await sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings.defaultRepo);
+  assert.equal(s1, 'test-user/coding-notes');
+  await panel.click('#tab-settings');
+  await panel.waitForFunction(() => /Fine-grained personal access token · expires/.test(document.querySelector('#s-account').textContent));
+  assert.equal(await panel.isChecked('#s-full-url'), false);
+  await panel.check('#s-full-url');
+  await panel.selectOption('#s-theme', 'dark');
+  await panel.click('#s-form button[type=submit]');
+  await panel.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  const s2 = await sw.evaluate(async () => (await chrome.storage.local.get('settings')).settings);
+  assert.equal(s2.fullSourceUrl, true);
+  if (shotsDir) await panel.screenshot({ path: path.join(shotsDir, '9-sidepanel-settings-dark.png'), fullPage: true });
+  await panel.selectOption('#s-theme', 'system');
+  await panel.uncheck('#s-full-url');
+  await panel.click('#s-form button[type=submit]');
+});
+
+await step('side panel quick capture is wired to the service worker and reports errors', async () => {
+  await panel.click('#tab-capture');
+  // The test build holds <all_urls>, so the optional permission counts as granted.
+  assert.equal(await panel.isHidden('#perm-card'), true);
+  await panel.click('#view-capture .quick[data-category="notes"]');
+  await panel.waitForSelector('#view-capture .capture-result:not([hidden])');
+  // The active tab is the side panel page itself here (opened as a tab), which cannot be read.
+  assert.match(await panel.textContent('#view-capture .capture-result'), /does not allow extensions/);
+  await panel.close();
 });
 
 await step('token never appears in page URLs', async () => {
