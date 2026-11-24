@@ -65,7 +65,7 @@ test('folder template and commit message', () => {
   assert.equal(suggestFolder('', 'go', {}, now), '');
   assert.equal(suggestCommitMessage('fibonacci.py'), 'Add fibonacci');
   assert.match(metadataTrailer({ url: 'https://a.b/c', title: 'T' }, '2026-01-01T00:00:00Z'), /Source URL: https:\/\/a\.b\/c/);
-  assert.equal(sourceHeader('python', { url: 'https://a.b' }, 'now'), '# Source: https://a.b\n# Captured: now\n\n');
+  assert.equal(sourceHeader('python', { url: 'https://a.b' }, 'now'), '# Source: https://a.b/\n# Captured: now\n\n');
   assert.equal(sourceHeader('json', { url: 'https://a.b' }, 'now'), '');
   assert.ok(!sourceHeader('css', { url: 'https://a.b/*/ evil' }, 'now').includes('*/ evil'));
 });
@@ -144,7 +144,7 @@ test('GitHub client sends token only to api.github.com and encodes paths', async
   const seen = [];
   const f = async (url, init) => {
     seen.push({ url, init });
-    return new Response(JSON.stringify({ content: { html_url: 'https://github.com/o/r/blob/main/a%20b/c.py', sha: 's' }, commit: {} }), { status: 201 });
+    return new Response(JSON.stringify({ content: { path: 'a b/c#.py', html_url: 'https://github.com/o/r/blob/main/a%20b/c.py', sha: 's' }, commit: { sha: 'a'.repeat(40), html_url: 'https://github.com/o/r/commit/x' } }), { status: 201 });
   };
   const c = new GitHubClient('secret-token', { fetchImpl: f });
   const res = await c.putFile('o/r', 'a b/c#.py', { content: 'é', message: 'm', branch: 'main', sha: 'abc' });
