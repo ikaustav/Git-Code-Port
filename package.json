@@ -9,5 +9,8 @@
     "test:e2e": "node tests/e2e.js",
     "check": "node scripts/check.mjs",
     "package": "bash scripts/package.sh"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
   }
 }
