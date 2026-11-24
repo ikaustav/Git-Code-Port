@@ -1,6 +1,7 @@
 // Filename, folder and commit-message suggestions.
 import { byId } from './languages.js';
 import { sanitizeFilename, joinPath } from '../utils/validation.js';
+import { redactSourceUrl } from '../security/redact.js';
 
 const GENERIC_TITLES = /^(untitled|new tab|home|index|problem|problems|submission|submissions|solution|solutions|editorial|description|chatgpt|claude|gemini|copilot|stack overflow|leetcode|geeksforgeeks|codeforces|hackerrank|codechef|atcoder|github|gist|w3schools|mdn web docs)$/i;
 
@@ -140,19 +141,22 @@ const oneLine = (s, max) => String(s).replace(/[\r\n]+/g, ' ').trim().slice(0, m
  * Commit message body. Keeps the code itself untouched.
  * @param {object} context    { title, url }
  * @param {string} capturedAt ISO time
- * @param {{ includeSource?: boolean, language?: string, notes?: string }} opts
+ * @param {{ includeSource?: boolean, fullUrl?: boolean, language?: string, category?: string, tags?: string[], notes?: string }} opts
  */
 export function metadataTrailer(context = {}, capturedAt, opts = {}) {
-  const { includeSource = true, language = '', notes = '' } = opts;
+  const { includeSource = true, fullUrl = false, language = '', category = '', tags = [], notes = '' } = opts;
   const lines = [];
   const cleanNotes = String(notes || '').replace(/\r\n?/g, '\n').trim().slice(0, 2000);
   if (cleanNotes) lines.push(cleanNotes, '');
   if (includeSource) {
+    const url = redactSourceUrl(context.url, { keepQuery: fullUrl });
     if (context.title) lines.push(`Source title: ${oneLine(context.title, 200)}`);
-    if (context.url) lines.push(`Source URL: ${oneLine(context.url, 500)}`);
+    if (url) lines.push(`Source URL: ${oneLine(url, 500)}`);
     if (capturedAt) lines.push(`Captured: ${capturedAt}`);
-    if (language) lines.push(`Language: ${oneLine(language, 40)}`);
   }
+  if (category) lines.push(`Category: ${oneLine(category, 40)}`);
+  if (language) lines.push(`Language: ${oneLine(language, 40)}`);
+  if (tags && tags.length) lines.push(`Tags: ${oneLine(tags.join(', '), 200)}`);
   lines.push('Saved with Git Code Port');
   return lines.join('\n');
 }
@@ -160,8 +164,9 @@ export function metadataTrailer(context = {}, capturedAt, opts = {}) {
 /** Optional header comment for the file itself (off by default). */
 export function sourceHeader(langId, context = {}, capturedAt) {
   const lang = byId[langId];
-  if (!lang || !lang.comment || !context.url) return '';
+  const url = redactSourceUrl(context.url);
+  if (!lang || !lang.comment || !url) return '';
   const [pre, post] = lang.comment;
   const safe = (s) => String(s).replace(/\*\/|-->|\n/g, ' ');
-  return `${pre} Source: ${safe(context.url)}${post}\n${pre} Captured: ${safe(capturedAt || '')}${post}\n\n`;
+  return `${pre} Source: ${safe(url)}${post}\n${pre} Captured: ${safe(capturedAt || '')}${post}\n\n`;
 }

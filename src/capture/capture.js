@@ -4,7 +4,12 @@
 
 export const CAPTURE_PREFIX = 'capture:';
 const CAPTURE_TTL_MS = 6 * 60 * 60 * 1000;
-const MAX_CAPTURE_CHARS = 2 * 1024 * 1024;
+// Same limit as an upload (validation.js). Larger selections are refused, never truncated.
+export const MAX_CAPTURE_BYTES = 1024 * 1024;
+
+export function byteLength(text) {
+  return new TextEncoder().encode(String(text)).length;
+}
 
 /**
  * Runs inside the page (isolated world) via chrome.scripting. It must be self-contained:
@@ -67,7 +72,7 @@ export async function readSelectionFromTab(tab, hints = {}) {
       // Prefer the top frame, then the first frame that has a selection.
       const sorted = (results || []).slice().sort((a, b) => (a.frameId || 0) - (b.frameId || 0));
       const hit = sorted.map((r) => r && r.result).find((r) => r && typeof r.text === 'string' && r.text.trim());
-      if (hit) return { text: hit.text.slice(0, MAX_CAPTURE_CHARS), languageHint: hit.languageHint || '', method: 'selection', restricted: false };
+      if (hit) return { text: hit.text, languageHint: hit.languageHint || '', method: 'selection', restricted: false };
     } catch (_) {
       // PDF viewer, cross-origin frame without access, or a page that blocks extensions.
       restricted = true;
@@ -75,13 +80,14 @@ export async function readSelectionFromTab(tab, hints = {}) {
   }
   // info.selectionText collapses newlines and indentation, so it is only a fallback.
   const fallback = String(hints.selectionText || '');
-  if (fallback.trim()) return { text: fallback.slice(0, MAX_CAPTURE_CHARS), languageHint: '', method: 'menu-fallback', restricted };
+  if (fallback.trim()) return { text: fallback, languageHint: '', method: 'menu-fallback', restricted };
   return { text: '', languageHint: '', method: 'none', restricted };
 }
 
 export function buildCapture(read, tab, hints = {}) {
   return {
     id: crypto.randomUUID(),
+    category: hints.category && hints.category !== 'auto' ? hints.category : '',
     text: read.text,
     languageHint: read.languageHint,
     method: read.method,

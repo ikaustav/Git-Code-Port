@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'release/**']
+  pull_request:
+
+# Read-only token: CI never needs to write to the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dev dependencies (Playwright only; the extension has none)
+        run: npm ci --ignore-scripts
+      - name: Static checks (manifest, CSP, unsafe APIs, secrets)
+        run: npm run check
+      - name: Unit tests
+        run: npm test
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests (mocked GitHub API)
+        run: npm run test:e2e
+      - name: Build package
+        run: npm run package

@@ -16,6 +16,15 @@ export class GitHubError extends Error {
   }
 }
 
+export function isSha(v) {
+  return typeof v === 'string' && /^[0-9a-f]{40}$/.test(v);
+}
+
+/** Only https://github.com/ links are ever shown to the user. */
+export function safeGitHubUrl(v) {
+  return typeof v === 'string' && /^https:\/\/github\.com\//.test(v) ? v : '';
+}
+
 function encodePath(path) {
   return path.split('/').map(encodeURIComponent).join('/');
 }
@@ -91,6 +100,18 @@ export class GitHubClient {
     return (await this.request('GET', '/user', { context: 'Account' })).data;
   }
 
+  /** The account plus token metadata from response headers (never the token itself). */
+  async getUserAndTokenInfo() {
+    const r = await this.request('GET', '/user', { context: 'Account' });
+    return {
+      user: r.data,
+      headers: {
+        scopes: r.headers.get('x-oauth-scopes'),
+        expiration: r.headers.get('github-authentication-token-expiration'),
+      },
+    };
+  }
+
   /** Repos the token can access and push to, most recently pushed first. */
   async listRepos({ maxPages = 5 } = {}) {
     const out = [];
@@ -137,11 +158,38 @@ export class GitHubClient {
     return { isFile: true, sha: d.sha, content, htmlUrl: d.html_url, size: d.size };
   }
 
-  /** Create (no sha) or update (with sha). Never called without an explicit user decision. */
+  /**
+   * Create (no sha) or update (with sha). Never called without an explicit user decision.
+   * The response is validated before it is reported as a success.
+   */
   async putFile(fullName, path, { content, message, branch, sha }) {
     const body = { message, content: utf8ToBase64(content), branch };
     if (sha) body.sha = sha;
     const { data } = await this.request('PUT', `/repos/${fullName}/contents/${encodePath(path)}`, { body, context: `Path ${path}` });
-    return { htmlUrl: data.content && data.content.html_url, commitUrl: data.commit && data.commit.html_url, sha: data.content && data.content.sha };
+    const commitSha = data && data.commit && data.commit.sha;
+    const contentPath = data && data.content && data.content.path;
+    if (!isSha(commitSha) || (contentPath !== undefined && contentPath !== path)) {
+      throw new GitHubError('unexpected', 'GitHub answered, but not with the expected confirmation. Check the repository on GitHub before trying again.', { detail: 'Missing or mismatched commit data in the response.' });
+    }
+    return {
+      htmlUrl: safeGitHubUrl(data.content && data.content.html_url),
+      commitUrl: safeGitHubUrl(data.commit.html_url),
+      commitSha,
+      sha: data.content && data.content.sha,
+    };
+  }
+
+  /** Commits that touched a file on a branch, newest first. */
+  async listFileCommits(fullName, path, branch, { perPage = 20 } = {}) {
+    const q = `path=${encodeURIComponent(path)}&sha=${encodeURIComponent(branch)}&per_page=${perPage}`;
+    const { data } = await this.request('GET', `/repos/${fullName}/commits?${q}`, { context: `Repository ${fullName}` });
+    if (!Array.isArray(data)) throw new GitHubError('unexpected', 'GitHub returned an unexpected commit list.');
+    return data.filter((c) => c && isSha(c.sha)).map((c) => ({
+      sha: c.sha,
+      message: String((c.commit && c.commit.message) || '').split('\n')[0].slice(0, 200),
+      date: (c.commit && c.commit.author && c.commit.author.date) || '',
+      author: (c.author && c.author.login) || (c.commit && c.commit.author && c.commit.author.name) || '',
+      htmlUrl: safeGitHubUrl(c.html_url),
+    }));
   }
 }

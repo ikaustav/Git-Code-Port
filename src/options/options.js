@@ -1,5 +1,8 @@
 import { GitHubClient, GitHubError } from '../github/api.js';
-import { getSettings, saveSettings, getToken, setToken, clearToken, getHistory, clearHistory } from '../storage/settings.js';
+import { getSettings, saveSettings, getToken, setToken, clearToken } from '../storage/settings.js';
+import { getIndex, clearIndex } from '../history/index.js';
+import { isPlausibleToken } from '../security/token.js';
+import { applyTheme } from '../ui/theme.js';
 import { renderHistory } from '../ui/history.js';
 import { validateBranch } from '../utils/validation.js';
 
@@ -32,7 +35,7 @@ $('connect-form').addEventListener('submit', async (ev) => {
   const token = $('token').value.trim();
   const err = $('connect-error');
   err.hidden = true;
-  if (!/^(github_pat_|ghp_|gho_|ghu_)[A-Za-z0-9_]{20,250}$/.test(token)) {
+  if (!isPlausibleToken(token)) {
     err.textContent = 'That does not look like a GitHub token (expected github_pat_… or ghp_…).';
     err.hidden = false;
     return;
@@ -90,10 +93,11 @@ $('defaults-form').addEventListener('submit', async (ev) => {
 });
 
 $('clear-history').addEventListener('click', async () => {
-  await clearHistory();
+  await clearIndex();
   renderHistory($('history'), []);
 });
 
 renderConnection();
 renderDefaults();
-getHistory().then((h) => renderHistory($('history'), h));
+getIndex().then((h) => renderHistory($('history'), h));
+getSettings().then((s) => applyTheme(s.theme));

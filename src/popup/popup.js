@@ -1,5 +1,7 @@
-import { getSettings, getToken, getHistory } from '../storage/settings.js';
+import { getSettings, getToken } from '../storage/settings.js';
+import { getIndex } from '../history/index.js';
 import { renderHistory } from '../ui/history.js';
+import { applyTheme } from '../ui/theme.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -9,7 +11,8 @@ function showError(message) {
 }
 
 (async () => {
-  const [token, settings, history] = await Promise.all([getToken(), getSettings(), getHistory()]);
+  const [token, settings, history] = await Promise.all([getToken(), getSettings(), getIndex()]);
+  applyTheme(settings.theme);
   $('status').textContent = token
     ? `Connected to GitHub${settings.githubLogin ? ` as @${settings.githubLogin}` : ''}`
     : 'Not connected. Open Settings to add a token.';
@@ -35,8 +38,20 @@ $('capture').addEventListener('click', async () => {
     showError('Could not capture the selection. Reload the page and try again.');
   } finally {
     $('capture').disabled = false;
-    $('capture').textContent = 'Capture selected code';
+    $('capture').textContent = 'Capture selection';
   }
 });
 
 $('settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
+
+// sidePanel.open must be called synchronously inside the click (user gesture),
+// so the window id is looked up in advance.
+let windowId = null;
+chrome.windows.getCurrent().then((w) => { windowId = w.id; }).catch(() => {});
+
+$('workspace').addEventListener('click', () => {
+  if (windowId === null || !chrome.sidePanel) { showError('Could not open the side panel. Update Chrome to version 116 or newer.'); return; }
+  chrome.sidePanel.open({ windowId }).then(() => window.close()).catch(() => {
+    showError('Could not open the side panel. Update Chrome to version 116 or newer.');
+  });
+});
